@@ -1,0 +1,154 @@
+# rs-ircd example configuration.
+#
+# Secrets are never written here: every password is referenced by the name of
+# an environment variable (see .env.example).
+
+[server]
+name = "irc.example.org"
+description = "rs-ircd"
+network = "ExampleNet"
+sid = "0RS"
+# Optional connection password for clients, read from the environment.
+# password_env = "IRCD_CLIENT_PASSWORD"
+# Optional RFC 2813 link password; without it server links are refused.
+# link_password_env = "IRCD_LINK_PASSWORD"
+# Server names allowed to link. Empty means "any name with the right password".
+peers = []
+motd = "motd.txt"
+resolve_hostnames = false
+casemapping = "rfc1459"
+max_nick_length = 30
+# Seconds a channel invitation stays valid before `+i` refuses the invitee.
+invite_expiry_secs = 300
+# Warn the invitee and inviter this many seconds before it lapses; 0 disables.
+invite_warning_secs = 60
+# Vendor tags a client may send without the `+` prefix. Keys match exactly and
+# are relayed like `+` tags; server tags (time, account, label) are refused.
+client_tag_allowlist = []
+# client_tag_allowlist = ["example.com/foo", "draft/reply"]
+
+[limits]
+max_clients = 4096
+max_channels_per_client = 100
+max_channel_members = 1024
+max_line_len = 512
+registration_timeout_secs = 60
+ping_interval_secs = 90
+ping_timeout_secs = 120
+send_queue = 2048
+whowas_size = 512
+max_targets = 4
+
+# Outbound links. The daemon dials each peer itself, sends PASS/SERVER and
+# reconnects with exponential backoff when the link drops. The peer must accept
+# inbound links on a `server_link` listener with the same password.
+# [[links]]
+# name = "hub.example.org"
+# address = "hub.example.org"
+# port = 7000
+# tls = false
+# tls_ca_path = "hub-ca.pem"       # required when tls = true
+# tls_server_name = "hub.example.org"
+# retry_initial_secs = 5
+# retry_max_secs = 300
+
+[compression]
+enabled = true
+level = 6
+max_decompressed = 1048576
+
+[logging]
+level = "info"
+format = "text"
+console = true
+
+[logging.file]
+enabled = false
+directory = "logs"
+prefix = "ircd"
+max_files = 7
+
+[logging.syslog]
+enabled = false
+facility = "daemon"
+tag = "rs-ircd"
+
+[daemon]
+enabled = false
+# pid_file = "/run/rs-ircd.pid"
+# working_directory = "/"
+
+[scripting]
+enabled = false
+# Rhai scripts, evaluated after the compiled rules below.
+scripts = []
+# Compiled guard rules; see scripts/rules.example.toml.
+rules = []
+max_operations = 100000
+max_call_depth = 32
+max_string_size = 1048576
+
+[diagnostics]
+enabled = true
+benchmarks = false
+
+[tls]
+# Generate with: openssl req -x509 -newkey rsa:4096 -nodes \
+#   -keyout key.pem -out cert.pem -days 365 -subj "/CN=irc.example.org"
+cert_path = "cert.pem"
+key_path = "key.pem"
+# Set to the name of an environment variable holding the key passphrase when
+# the key is an encrypted PKCS#8 PEM.
+# key_password_env = "IRCD_TLS_KEY_PASSPHRASE"
+min_version = "1.2"
+# Ask for a client certificate so SASL EXTERNAL has something to authenticate.
+# The certificate is not checked against a CA: each account pins its
+# fingerprint instead, so no public PKI is needed.
+request_client_certs = false
+
+[sasl]
+# Advertise the `sasl` capability and accept AUTHENTICATE.
+enabled = true
+# Require SASL before registration completes.
+require = false
+
+# Accounts usable for SASL. `password_hash_env` names an environment variable
+# holding the SHA-256 hex hash; `cert_fingerprint` is the SHA-256 hex digest of
+# a TLS client certificate:
+#   openssl x509 -in client.pem -outform der | sha256sum
+# [[accounts]]
+# name = "alice"
+# password_hash_env = "IRCD_ACCOUNT_ALICE_HASH"
+
+# [[accounts]]
+# name = "bob"
+# cert_fingerprint = "0000000000000000000000000000000000000000000000000000000000000000"
+
+# One entry per operator account. The hash is produced with
+# `printf '%s' 'secret' | rs-ircd hash` and exported as an environment variable.
+# [[opers]]
+# name = "admin"
+# password_hash_env = "IRCD_OPER_ADMIN_HASH"
+# host = "*@localhost"
+# flags = ["kill", "rehash", "global", "die"]
+
+# Plain client listener.
+[[listen]]
+addresses = ["0.0.0.0", "::"]
+port = 6667
+tls = false
+server_link = false
+
+# TLS listener (RFC 7194 convention).
+[[listen]]
+addresses = ["0.0.0.0", "::"]
+port = 6697
+tls = true
+server_link = false
+
+# Listener that accepts RFC 2813 peer links. Keep it firewalled to peers.
+[[listen]]
+addresses = ["0.0.0.0", "::"]
+port = 7000
+tls = true
+server_link = true

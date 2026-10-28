@@ -1,0 +1,92 @@
+[package]
+name = "rs-ircd"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+description = "IRC daemon implementing RFC 1459, RFC 2810-2813 with TLS and scripting hooks"
+license = "CC0-1.0"
+repository = "https://github.com/0xdeadbeef/rs-ircd-vc"
+
+[lib]
+name = "ircd"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rs-ircd"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+bytes = "1"
+clap = { version = "4", features = ["derive"] }
+dashmap = "6"
+dotenvy = "0.15"
+flate2 = "1"
+parking_lot = "0.12"
+pkcs8 = { version = "0.10", features = ["encryption", "pem"] }
+rand = "0.8"
+rhai = { version = "1", features = ["sync"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pemfile = "2"
+serde = { version = "1", features = ["derive"] }
+socket2 = "0.5"
+serde_json = "1"
+sha2 = "0.10"
+subtle = "2"
+thiserror = "2"
+time = { version = "0.3", features = ["formatting", "macros", "local-offset"] }
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "net",
+    "io-util",
+    "sync",
+    "time",
+    "macros",
+    "signal",
+] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+toml = "0.8"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "time"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+syslog = "6"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Console",
+    "Win32_System_EventLog",
+    "Win32_System_Registry",
+] }
+
+[dev-dependencies]
+brotli = "7"
+criterion = "0.5"
+lz4_flex = "0.11"
+rcgen = "0.13"
+tempfile = "3"
+zstd = "0.13"
+
+[[bench]]
+name = "protocol"
+harness = false
+
+[[bench]]
+name = "compression"
+harness = false
+
+[[bench]]
+name = "fanout"
+harness = false
+
+[[bench]]
+name = "dispatch"
+harness = false
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

@@ -1,0 +1,37 @@
+# Compiled guard rules, evaluated before any Rhai hook runs.
+#
+# Rules are checked in file order and the first matching Allow or Deny decides.
+# A Notice rule lets evaluation continue so several advisories can apply.
+#
+# Patterns are wildcards: `*` matches any run of characters, `?` matches one.
+# `account = "-"` means "not authenticated"; `account = "*"` means "any account".
+
+[[rule]]
+name = "vip-exception"
+hook = "command"
+command = "PRIVMSG"
+account = "operator"
+action = "allow"
+
+[[rule]]
+name = "no-badword"
+hook = "command"
+command = "PRIVMSG"
+text = "*badword*"
+action = "deny"
+notice = "That word is not welcome here"
+
+[[rule]]
+name = "advertise-accounts"
+hook = "command"
+command = "PRIVMSG"
+account = "-"
+action = "notice"
+notice = "Log in with SASL to use private messaging on this network"
+
+[[rule]]
+name = "keep-links-clean"
+hook = "join"
+host = "*.blocked.example"
+action = "deny"
+notice = "Joining is not permitted from this host"
