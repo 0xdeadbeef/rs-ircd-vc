@@ -1204,6 +1204,32 @@ impl Server {
         logging.set_level(&config.logging.level)?;
 
         let motd = load_motd(&config);
+        // Privileges are cached on the session so authorisation is one masked
+        // test. That cache has to be refreshed here, otherwise a reload that
+        // narrows or removes an operator would leave the old authority in
+        // place until the next `OPER`, which is the opposite of what an
+        // operator issuing `REHASH` to revoke access expects.
+        for entry in self.clients.iter() {
+            let client = entry.value();
+            let Some(name) = client.session(|session| session.oper.clone()) else {
+                continue;
+            };
+            let privileges = config
+                .opers
+                .iter()
+                .find(|oper| oper.name == name)
+                .map(|oper| OperPrivilege::from_flags(&oper.flags));
+            client.session_mut(|session| match privileges {
+                Some(privileges) => session.privileges = privileges,
+                None => {
+                    session.privileges = OperPrivilege::NONE;
+                    session.oper = None;
+                    session.modes.oper = false;
+                    session.modes.snomask = false;
+                    session.snomasks = Snomask::NONE;
+                }
+            });
+        }
         *self.config.write() = config;
         *self.hooks.write() = hooks;
         *self.accounts.write() = accounts;
