@@ -217,7 +217,8 @@ redundant links or split-mode healing). IRCv3 support covers eleven
 capabilities (no batches, history or `monitor`), and SASL
 supports `PLAIN` and `EXTERNAL` only. `docs/FEATURES.md` compares this feature
 set with InspIRCd, UnrealIRCd, Solanum, Ergo and ngIRCd, including which gaps
-actually matter.
+actually matter. The full comparison and prioritised gap report with sizing is in
+`docs/COMPARISON.md`.
 
 ## License
 

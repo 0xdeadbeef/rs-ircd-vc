@@ -3,6 +3,9 @@
 Compared with five established daemons. "Listed" means the vendor documents the
 feature; it does not mean every build enables it. Sources are linked at the end.
 
+This page is the index. For the full comparison, the scorecard, and a
+prioritised gap report with sizing, see [COMPARISON.md](COMPARISON.md).
+
 ## Matrix
 
 | Feature | rs-ircd (this) | InspIRCd 4 | UnrealIRCd 6 | Solanum | Ergo | ngIRCd |
@@ -17,11 +20,11 @@ feature; it does not mean every build enables it. Sources are linked at the end.
 | Connection compression | zlib, per frame | Not documented | Not verified | ZIP/ziplinks | n/a | zlib for links |
 | SASL | PLAIN, EXTERNAL, pluggable backend | Yes (via services) | Yes (via services) | Yes | Yes | Not documented |
 | IRCv3 CAP 302 | Yes | Yes | Yes | Yes | Yes | Yes |
-| `message-tags` | `server-time` only | Yes | Yes | Yes | Yes | No |
+| `message-tags` | Yes (client tags, 4 KiB budget) | Yes | Yes | Yes | Yes | No |
 | `server-time` | Yes | Yes | Yes | Yes | Yes | No |
 | `batch` | No | Yes | Yes | Yes | Yes | No |
 | `chathistory` | No | No (join history module) | Yes | No | Yes | No |
-| `labeled-response` | No | Yes | Yes | Yes | Yes | No |
+| `labeled-response` | Yes | Yes | Yes | Yes | Yes | No |
 | `account-tag` | Yes | Yes | Yes | Yes | Yes | No |
 | `monitor` | No | Yes | Yes | Yes | Yes | No |
 | `extended-join` | Yes | Yes | Yes | Yes | Yes | No |
