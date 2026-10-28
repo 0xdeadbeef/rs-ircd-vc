@@ -399,6 +399,10 @@ pub struct OperSection {
 }
 
 /// Privileges an operator may hold.
+///
+/// This is the configuration spelling; [`OperPrivilege`] is the run-time bit
+/// set a session carries, so an authorisation check is one masked comparison
+/// rather than a scan of the operator's configuration entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum OperFlag {
@@ -406,10 +410,78 @@ pub enum OperFlag {
     Kill,
     /// `REHASH` the configuration.
     Rehash,
-    /// Apply network-wide disconnects.
+    /// Apply network-wide disconnects and send `GLOBOPS`.
     Global,
     /// Shut the server down.
     Die,
+    /// Force channel modes and join restricted channels (`SAMODE`, override).
+    Admin,
+    /// Create and lift network-wide server bans.
+    Ban,
+}
+
+impl OperFlag {
+    /// The bit this flag contributes.
+    pub fn privilege(self) -> OperPrivilege {
+        match self {
+            OperFlag::Kill => OperPrivilege::KILL,
+            OperFlag::Rehash => OperPrivilege::REHASH,
+            OperFlag::Global => OperPrivilege::GLOBAL,
+            OperFlag::Die => OperPrivilege::DIE,
+            OperFlag::Admin => OperPrivilege::ADMIN,
+            OperFlag::Ban => OperPrivilege::BAN,
+        }
+    }
+}
+
+/// A set of operator privileges.
+///
+/// A newtype over a bit mask rather than a collection: authorisation is one
+/// `AND`, the value is `Copy`, and a session carries it without an allocation.
+/// `+o` alone grants nothing; [`OperPrivilege::ALL`] is the union of every
+/// flag, used when an operator's configuration is reloaded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct OperPrivilege(u16);
+
+impl OperPrivilege {
+    /// No privileges.
+    pub const NONE: OperPrivilege = OperPrivilege(0);
+    /// `KILL`.
+    pub const KILL: OperPrivilege = OperPrivilege(1 << 0);
+    /// `REHASH` and the diagnostic commands.
+    pub const REHASH: OperPrivilege = OperPrivilege(1 << 1);
+    /// `WALLOPS`, `GLOBOPS` and network-wide actions.
+    pub const GLOBAL: OperPrivilege = OperPrivilege(1 << 2);
+    /// Process shutdown.
+    pub const DIE: OperPrivilege = OperPrivilege(1 << 3);
+    /// `SAMODE`, `MODE` override and joining restricted channels.
+    pub const ADMIN: OperPrivilege = OperPrivilege(1 << 4);
+    /// Server ban management.
+    pub const BAN: OperPrivilege = OperPrivilege(1 << 5);
+    /// Every privilege.
+    pub const ALL: OperPrivilege = OperPrivilege(0b11_1111);
+
+    /// Union of the configured flags.
+    pub fn from_flags(flags: &[OperFlag]) -> Self {
+        flags
+            .iter()
+            .fold(OperPrivilege::NONE, |set, flag| set.union(flag.privilege()))
+    }
+
+    /// True when every bit in `other` is present.
+    pub fn contains(self, other: OperPrivilege) -> bool {
+        self.0 & other.0 == other.0
+    }
+
+    /// Add every bit in `other`.
+    pub fn union(self, other: OperPrivilege) -> Self {
+        OperPrivilege(self.0 | other.0)
+    }
+
+    /// True when no privilege is held.
+    pub fn is_empty(self) -> bool {
+        self.0 == 0
+    }
 }
 
 /// A listener binding one port to one or more addresses.
@@ -620,6 +692,7 @@ impl Config {
                 return Err(Error::Config(format!("duplicate account {}", account.name)));
             }
         }
+        let mut oper_names = HashSet::with_capacity(self.opers.len());
         for oper in &self.opers {
             if oper.name.is_empty() {
                 return Err(Error::Config("oper name must not be empty".to_owned()));
@@ -629,6 +702,15 @@ impl Config {
                     "oper {} needs password_hash_env",
                     oper.name
                 )));
+            }
+            if oper.flags.is_empty() {
+                return Err(Error::Config(format!(
+                    "oper {} needs at least one flag",
+                    oper.name
+                )));
+            }
+            if !oper_names.insert(oper.name.to_ascii_lowercase()) {
+                return Err(Error::Config(format!("duplicate oper {}", oper.name)));
             }
         }
         let mut link_names = HashSet::with_capacity(self.links.len());

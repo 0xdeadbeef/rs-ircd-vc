@@ -87,6 +87,10 @@ harness = false
 name = "dispatch"
 harness = false
 
+[[bench]]
+name = "oper"
+harness = false
+
 [profile.release]
 lto = "thin"
 codegen-units = 1

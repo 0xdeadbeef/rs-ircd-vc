@@ -102,6 +102,33 @@ fn deliver(cx: &Cmd, command: &str) -> Result<(), CommandError> {
         }
         return Err(cx.fail(Numeric::ERR_NOTEXTTOSEND, ":No text to send"));
     }
+    // A shun silences a client without disconnecting it. The ban list is empty
+    // on almost every server, so the check bails out before building masks.
+    if cx.server.has_bans() {
+        let (nick, user, host, account) = cx.client.session(|session| {
+            (
+                session.nick.clone().unwrap_or_default(),
+                session.user.clone().unwrap_or_default(),
+                session.host.clone(),
+                session.account.clone(),
+            )
+        });
+        // MARK: security: medium: SEC-BAN-003: a shun drops speech at the delivery point.
+        if cx
+            .server
+            .matching_ban(
+                &[crate::server::BanKind::Shun],
+                &nick,
+                &user,
+                &host,
+                &cx.client.peer.ip().to_string(),
+                account.as_deref(),
+            )
+            .is_some()
+        {
+            return Ok(());
+        }
+    }
     let limit = cx.server.cfg().limits.max_targets.max(1);
     for target in targets.split(',').take(limit) {
         let result = if is_channel_name(target) {

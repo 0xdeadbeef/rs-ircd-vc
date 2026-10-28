@@ -142,17 +142,46 @@ fn join_one(cx: &Cmd, name: &str, key: &str) -> Result<(), CommandError> {
             key,
         };
         // MARK: security: high: SEC-JOIN-001: every channel mode is enforced in one ordered gate.
+        // An operator holding `admin` may override the gate, and the channel
+        // operators are told which rule was overridden. The privilege is
+        // checked here rather than in the command so a relayed join cannot
+        // take a different path.
+        let mut overrode = None;
         if let Err(refusal) = channel.join_check(&request, std::time::Instant::now()) {
-            let numeric = match refusal {
-                JoinRefusal::Full => Numeric::ERR_CHANNELISFULL,
-                JoinRefusal::BadKey => Numeric::ERR_BADCHANNELKEY,
-                JoinRefusal::InviteOnly => Numeric::ERR_INVITEONLYCHAN,
-                JoinRefusal::AccountOnly => Numeric::ERR_NEEDREGGEDNICK,
-                JoinRefusal::Banned => Numeric::ERR_BANNEDFROMCHAN,
-            };
-            return Err(cx.fail(numeric, format!("{name} :{}", refusal.reason())));
+            if cx.has_privilege(crate::config::OperPrivilege::ADMIN) {
+                overrode = Some(refusal);
+            } else {
+                let numeric = match refusal {
+                    JoinRefusal::Full => Numeric::ERR_CHANNELISFULL,
+                    JoinRefusal::BadKey => Numeric::ERR_BADCHANNELKEY,
+                    JoinRefusal::InviteOnly => Numeric::ERR_INVITEONLYCHAN,
+                    JoinRefusal::AccountOnly => Numeric::ERR_NEEDREGGEDNICK,
+                    JoinRefusal::Banned => Numeric::ERR_BANNEDFROMCHAN,
+                };
+                return Err(cx.fail(numeric, format!("{name} :{}", refusal.reason())));
+            }
         }
         channel.add(cx.client.id);
+        if let Some(refusal) = overrode {
+            let server_name = cx.server.name();
+            let oper = cx.nick();
+            for (id, mode) in &channel.members {
+                if *id == cx.client.id || !mode.op {
+                    continue;
+                }
+                if let Some(channel_op) = cx.server.find_client(*id) {
+                    channel_op.send_raw(
+                        &format!(
+                            ":{server_name} NOTICE {} :Oper {oper} overrode {} on {}",
+                            channel_op.nick_or_star(),
+                            refusal.reason(),
+                            channel.name
+                        ),
+                        cx.max_line(),
+                    );
+                }
+            }
+        }
         let members = channel
             .sorted_members(|id| cx.server.find_client(id).and_then(|client| client.nick()))
             .into_iter()
@@ -628,7 +657,7 @@ fn cmd_mode(cx: Cmd) -> CmdFuture {
         let target = cx.param(0).unwrap_or_default().to_owned();
         let params = cx.msg.params[1..].to_vec();
         if is_channel_name(&target) {
-            channel_mode(&cx, &target, &params)
+            channel_mode(&cx, &target, &params, false)
         } else {
             user_mode(&cx, &target, &params)
         }
@@ -656,14 +685,24 @@ fn user_mode(cx: &Cmd, target: &str, params: &[String]) -> Result<(), CommandErr
         match character {
             '+' => adding = true,
             '-' => adding = false,
-            'i' | 'w' | 'o' => {
-                // Operators are granted by OPER, never self-assigned.
+            'i' | 'w' | 's' | 'o' => {
+                // Operators are granted by OPER, never self-assigned, and
+                // server notices are only meaningful for an operator.
                 if character == 'o' && adding {
                     continue;
                 }
-                let changed = cx
-                    .client
-                    .session_mut(|session| session.modes.apply(character, adding));
+                if character == 's' && adding && !cx.is_oper() {
+                    continue;
+                }
+                let changed = cx.client.session_mut(|session| {
+                    let changed = session.modes.apply(character, adding);
+                    // Clearing `+s` must also drop the subscription, otherwise
+                    // `SNOMASK` would keep filtering notices nobody can see.
+                    if changed && character == 's' && !adding {
+                        session.snomasks = crate::server::Snomask::NONE;
+                    }
+                    changed
+                });
                 if changed {
                     if last != Some(adding) {
                         rendered.push(if adding { '+' } else { '-' });
@@ -688,7 +727,7 @@ fn user_mode(cx: &Cmd, target: &str, params: &[String]) -> Result<(), CommandErr
     Ok(())
 }
 
-fn channel_mode(cx: &Cmd, name: &str, params: &[String]) -> Result<(), CommandError> {
+fn channel_mode(cx: &Cmd, name: &str, params: &[String], forced: bool) -> Result<(), CommandError> {
     let Some(channel) = cx.channel(name) else {
         return Err(cx.fail(
             Numeric::ERR_NOSUCHCHANNEL,
@@ -736,7 +775,7 @@ fn channel_mode(cx: &Cmd, name: &str, params: &[String]) -> Result<(), CommandEr
         cx.reply(code, format!("{} :{label}", guard.name));
         return Ok(());
     }
-    if !channel.read().is_op(cx.client.id) {
+    if !forced && !channel.read().is_op(cx.client.id) {
         return Err(cx.fail(
             Numeric::ERR_CHANOPRIVSNEEDED,
             format!("{} :You're not channel operator", channel.read().name),
@@ -905,6 +944,15 @@ fn channel_mode(cx: &Cmd, name: &str, params: &[String]) -> Result<(), CommandEr
     }
     cx.server.propagate_link(&message);
     Ok(())
+}
+
+/// Apply a channel mode change on behalf of an operator (`SAMODE`).
+///
+/// The same parser and the same broadcast as `MODE`; only the channel-operator
+/// requirement is bypassed, so a forced change produces exactly the wire
+/// traffic an ordinary change would.
+pub fn samode(cx: &Cmd, name: &str, params: &[String]) -> Result<(), CommandError> {
+    channel_mode(cx, name, params, true)
 }
 
 /// Send `RPL_NAMREPLY`/`RPL_ENDOFNAMES` to `recipients`.

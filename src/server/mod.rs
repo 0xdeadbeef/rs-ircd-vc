@@ -1,13 +1,15 @@
 //! Server state, command dispatch and teardown.
 
+pub mod ban;
 pub mod channel;
 pub mod client;
 pub mod link;
 
+pub use ban::{BanKind, ServerBan};
 pub use channel::Channel;
 pub use client::{
     CapSet, ClientHandle, ClientId, Outbound, ResponseContext, SaslMechanism, SaslSession, Session,
-    UserModes, RESPONSE,
+    Snomask, UserModes, RESPONSE,
 };
 
 /// The `label` tag of a client command, when it is a token that can be echoed
@@ -45,7 +47,7 @@ use tracing::{debug, info, warn};
 
 use crate::auth::{AccountBackend, ConfigAccounts};
 use crate::commands;
-use crate::config::{Config, OperFlag};
+use crate::config::{Config, OperPrivilege};
 use crate::error::{CommandError, Error, Result};
 use crate::hooks::{HookContext, HookOutcome};
 use crate::logging::LoggingHandle;
@@ -111,6 +113,8 @@ pub struct Server {
     pub burst_remote_won: DashMap<(ClientId, String), bool>,
     /// Shortest-path routes to the rest of the network.
     routes: DashMap<String, ServerInfo>,
+    /// Network-wide bans, shared by every kind so one scan answers any check.
+    bans: RwLock<Vec<ServerBan>>,
     pub started: u64,
     pub start_instant: Instant,
     local_count: AtomicUsize,
@@ -138,6 +142,7 @@ impl Server {
             motd: RwLock::new(motd),
             links: DashMap::new(),
             routes: DashMap::new(),
+            bans: RwLock::new(Vec::new()),
             burst_remote_won: DashMap::new(),
             started: now_unix(),
             start_instant: Instant::now(),
@@ -875,17 +880,130 @@ impl Server {
         self.motd.read().clone()
     }
 
-    /// True when the client is an operator holding `flag`.
-    pub fn has_oper_flag(&self, client: &ClientHandle, flag: OperFlag) -> bool {
-        let config = self.cfg();
-        let Some(account) = client.session(|session| session.oper.clone()) else {
-            return false;
-        };
-        config
-            .opers
+    /// True when the client is an operator holding every privilege in `wanted`.
+    ///
+    /// The privileges were resolved from the configuration when `OPER`
+    /// succeeded, so this is a masked comparison on the session rather than a
+    /// search through the operator table on every command.
+    pub fn has_privilege(&self, client: &ClientHandle, wanted: OperPrivilege) -> bool {
+        client.session(|session| session.modes.oper && session.privileges.contains(wanted))
+    }
+
+    /// Local operators, who receive `GLOBOPS` and server notices.
+    pub fn oper_recipients(&self) -> Vec<Arc<ClientHandle>> {
+        self.clients
             .iter()
-            .find(|oper| oper.name == account)
-            .is_some_and(|oper| oper.flags.contains(&flag))
+            .filter(|entry| entry.value().is_local())
+            .filter(|entry| entry.value().session(|session| session.modes.oper))
+            .map(|entry| Arc::clone(entry.value()))
+            .collect()
+    }
+
+    /// Deliver one server notice to the operators subscribed to `category`.
+    ///
+    /// The filter is evaluated per recipient: an operator with `+s` but no
+    /// matching bit receives nothing, and an operator without `+s` receives
+    /// nothing at all. That keeps a busy network from waking every oper for a
+    /// category none of them asked for.
+    pub fn snotice(&self, category: Snomask, text: &str) {
+        let name = self.config.read().server.name.clone();
+        let max_line = self.max_line();
+        let line = |client: &ClientHandle| {
+            format!(
+                ":{name} NOTICE {} :*** Notice -- {text}",
+                client.nick_or_star()
+            )
+        };
+        for entry in self.clients.iter() {
+            let client = entry.value();
+            if !client.is_local() || client.server_link {
+                continue;
+            }
+            let subscribed = client
+                .session(|session| session.modes.snomask && session.snomasks.contains(category));
+            if subscribed {
+                client.send_raw(&line(client), max_line);
+            }
+        }
+    }
+
+    /// Add or refresh a ban, returning `true` when it was new.
+    pub fn add_ban(&self, ban: ServerBan) -> bool {
+        let mut bans = self.bans.write();
+        let casemap = self.casemap();
+        if let Some(existing) = bans
+            .iter_mut()
+            .find(|entry| entry.kind == ban.kind && casemap.eq(&entry.mask, &ban.mask))
+        {
+            *existing = ban;
+            return false;
+        }
+        bans.push(ban);
+        true
+    }
+
+    /// Remove an entry by kind and mask, returning whether one was removed.
+    pub fn remove_ban(&self, kind: BanKind, mask: &str) -> bool {
+        let casemap = self.casemap();
+        let mut bans = self.bans.write();
+        let before = bans.len();
+        bans.retain(|entry| !(entry.kind == kind && casemap.eq(&entry.mask, mask)));
+        bans.len() != before
+    }
+
+    /// Drop expired entries, returning how many were removed.
+    pub fn prune_bans(&self) -> usize {
+        let now = now_unix();
+        let mut bans = self.bans.write();
+        let before = bans.len();
+        bans.retain(|entry| entry.active(now));
+        before - bans.len()
+    }
+
+    /// True when any ban is stored, expired or not.
+    ///
+    /// The message path checks this before deriving any masks, so a server
+    /// with no bans pays one atomic-length read per message.
+    pub fn has_bans(&self) -> bool {
+        !self.bans.read().is_empty()
+    }
+
+    /// Active bans, newest last.
+    pub fn active_bans(&self) -> Vec<ServerBan> {
+        let now = now_unix();
+        self.bans
+            .read()
+            .iter()
+            .filter(|entry| entry.active(now))
+            .cloned()
+            .collect()
+    }
+
+    /// First active ban of one of `kinds` that covers this user.
+    ///
+    /// Scans once; the list is bounded by operator actions rather than by
+    /// client input, and an empty list returns before building any mask.
+    pub fn matching_ban(
+        &self,
+        kinds: &[BanKind],
+        nick: &str,
+        user: &str,
+        host: &str,
+        address: &str,
+        account: Option<&str>,
+    ) -> Option<ServerBan> {
+        let now = now_unix();
+        let full = format!("{nick}!{user}@{host}");
+        let user_host = format!("{user}@{host}");
+        self.bans
+            .read()
+            .iter()
+            .find(|entry| {
+                kinds.contains(&entry.kind)
+                    && entry.active(now)
+                    && entry.matches_mask(nick, &full, &user_host, host, address, account)
+            })
+            .cloned()
     }
 
     /// Operators currently connected.
@@ -991,8 +1109,8 @@ impl Server {
             );
             return;
         }
-        if let commands::Access::Oper(flag) = spec.access {
-            if !self.has_oper_flag(client, flag) {
+        if let commands::Access::Oper(privilege) = spec.access {
+            if !self.has_privilege(client, privilege) {
                 self.numeric(
                     client,
                     Numeric::ERR_NOPRIVILEGES,

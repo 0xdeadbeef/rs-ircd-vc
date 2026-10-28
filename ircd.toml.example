@@ -130,7 +130,10 @@ require = false
 # name = "admin"
 # password_hash_env = "IRCD_OPER_ADMIN_HASH"
 # host = "*@localhost"
-# flags = ["kill", "rehash", "global", "die"]
+# Flags: kill, rehash, global (WALLOPS/GLOBOPS), die, admin (SAMODE and
+# channel override), ban (K/G/Z-line and SHUN). An operator with no flag can
+# still set a snomask but cannot change anything.
+# flags = ["kill", "rehash", "global", "die", "admin", "ban"]
 
 # Plain client listener.
 [[listen]]

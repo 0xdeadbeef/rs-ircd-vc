@@ -293,3 +293,31 @@ stays down until an operator restores it.
   byte-compatible with TS6.
 * Link TLS client-certificate authentication. Use a TLS listener plus the shared
   secret, and firewall the port.
+
+## Ban propagation
+
+Network-wide bans travel as their own message so a peer never has to interpret
+a channel list to find them:
+
+```
+:<server> BAN <kind> <set_at> <expires> <set_by> <mask> :<reason>
+:<server> UNBAN <kind> <mask>
+```
+
+`kind` is one of `K`, `G`, `Z` or `S`; `expires` is an absolute Unix instant, or
+empty for a permanent entry. A receiver refuses a `BAN` whose prefix is not the
+peer that sent it, ignores a `K` (local policy is not shared), stores the rest
+and forwards it to its other links. Applying a burst is idempotent: the same
+kind and mask replaces the entry rather than duplicating it.
+
+The netburst sends every active global ban before `EOB`, so a server that
+reconnects after a split refuses exactly what the rest of the network refuses.
+
+## Global operator notices
+
+```
+:<mask> GLOBOPS :<text>
+```
+
+Each server delivers the notice to its own operators and forwards it to the
+other links; the origin is excluded so a tree delivers it once per operator.

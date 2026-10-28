@@ -516,6 +516,46 @@ pub fn try_register(server: &Arc<Server>, client: &Arc<ClientHandle>) -> bool {
         client.request_close();
         return false;
     }
+    // MARK: security: critical: SEC-BAN-002: K-, G- and Z-lines are enforced before the welcome.
+    let (nick, user, host, address, account) = client.session(|session| {
+        (
+            session.nick.clone().unwrap_or_default(),
+            session.user.clone().unwrap_or_default(),
+            session.host.clone(),
+            client.peer.ip().to_string(),
+            session.account.clone(),
+        )
+    });
+    if let Some(ban) = server.matching_ban(
+        &[
+            crate::server::BanKind::Kline,
+            crate::server::BanKind::Gline,
+            crate::server::BanKind::Zline,
+        ],
+        &nick,
+        &user,
+        &host,
+        &address,
+        account.as_deref(),
+    ) {
+        let reason = if ban.reason.is_empty() {
+            ban.kind.name().to_owned()
+        } else {
+            format!("{}: {}", ban.kind.name(), ban.reason)
+        };
+        server.numeric(
+            client,
+            Numeric(465),
+            format!(":You are banned from this server ({reason})"),
+        );
+        client.send_raw(
+            &format!("ERROR :Closing link: {} ({reason})", client.mask()),
+            server.max_line(),
+        );
+        client.request_close();
+        return false;
+    }
+
     let signon = now_unix();
     client.session_mut(|session| {
         session.registered = true;

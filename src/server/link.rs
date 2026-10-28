@@ -158,6 +158,114 @@ pub fn account_changed(server: &Arc<Server>, client: &Arc<ClientHandle>) {
     server.propagate_link(&message);
 }
 
+/// Relay a new network-wide ban to the other servers.
+///
+/// A local K-line deliberately does not travel: one server's policy decision
+/// is not another's. Every other kind is a network decision and is forwarded
+/// by each receiver, so the whole tree converges.
+pub fn ban_added(server: &Arc<Server>, ban: &super::ban::ServerBan) {
+    if server.links.is_empty() || !ban.kind.is_global() {
+        return;
+    }
+    let mut message = Message::command("BAN");
+    message.prefix = Some(server.name());
+    message.params.push(ban.kind.letter().to_string());
+    message.params.push(ban.set_at.to_string());
+    message.params.push(
+        ban.expires
+            .map(|value| value.to_string())
+            .unwrap_or_default(),
+    );
+    message.params.push(ban.set_by.clone());
+    message.params.push(ban.mask.clone());
+    message.params.push(ban.reason.clone());
+    server.propagate_link(&message);
+}
+
+/// Relay a lifted network-wide ban to the other servers.
+pub fn ban_removed(server: &Arc<Server>, kind: super::ban::BanKind, mask: &str) {
+    if server.links.is_empty() || !kind.is_global() {
+        return;
+    }
+    let mut message = Message::command("UNBAN");
+    message.prefix = Some(server.name());
+    message.params.push(kind.letter().to_string());
+    message.params.push(mask.to_owned());
+    server.propagate_link(&message);
+}
+
+/// Apply a ban announced by another server.
+fn inbound_ban(server: &Arc<Server>, origin: ClientId, message: &Message) {
+    let prefix = message.prefix.as_deref().unwrap_or_default();
+    if !peer_prefix_matches(server, origin, prefix) {
+        return;
+    }
+    let Some(kind) = message.param(0).and_then(super::ban::BanKind::parse) else {
+        return;
+    };
+    if !kind.is_global() {
+        return;
+    }
+    let mask = message.param(4).unwrap_or_default();
+    if mask.is_empty() {
+        return;
+    }
+    let set_at = message
+        .param(1)
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or_else(crate::util::now_unix);
+    let expires = message
+        .param(2)
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|value| *value != 0);
+    let set_by = message.param(3).unwrap_or("remote");
+    let reason = message.param(5).unwrap_or_default();
+    let mut ban = super::ban::ServerBan::new(kind, mask, set_by, expires, reason);
+    ban.set_at = set_at;
+    server.snotice(
+        super::Snomask::BAN,
+        &format!("{} {} added by {set_by} on {prefix}", kind.name(), ban.mask),
+    );
+    server.add_ban(ban);
+    server.propagate_link_from(message, Some(origin));
+}
+
+/// Apply a ban lifted by another server.
+fn inbound_unban(server: &Arc<Server>, origin: ClientId, message: &Message) {
+    let prefix = message.prefix.as_deref().unwrap_or_default();
+    if !peer_prefix_matches(server, origin, prefix) {
+        return;
+    }
+    let Some(kind) = message.param(0).and_then(super::ban::BanKind::parse) else {
+        return;
+    };
+    let mask = message.param(1).unwrap_or_default();
+    if mask.is_empty() || !kind.is_global() {
+        return;
+    }
+    server.remove_ban(kind, mask);
+    server.snotice(
+        super::Snomask::BAN,
+        &format!("{} {mask} removed by {prefix}", kind.name()),
+    );
+    server.propagate_link_from(message, Some(origin));
+}
+
+/// Deliver a `GLOBOPS` from another server to this server's operators.
+fn inbound_globops(server: &Arc<Server>, origin: ClientId, message: &Message) {
+    let prefix = message.prefix.as_deref().unwrap_or_default();
+    if prefix.is_empty() {
+        return;
+    }
+    let mut notice = Message::command("GLOBOPS");
+    notice.prefix = Some(prefix.to_owned());
+    notice
+        .params
+        .push(message.param(0).unwrap_or_default().to_owned());
+    server.broadcast(server.oper_recipients(), &notice, None);
+    server.propagate_link_from(message, Some(origin));
+}
+
 /// Handle one message from an authenticated or pending server link.
 pub async fn handle(server: &Arc<Server>, link: &Arc<ClientHandle>, message: &Message) {
     if !server.links.contains_key(&link.id) {
@@ -188,6 +296,9 @@ pub async fn handle(server: &Arc<Server>, link: &Arc<ClientHandle>, message: &Me
         "TOPIC" => inbound_topic(server, origin, message),
         "MODE" => inbound_mode(server, origin, message),
         "ACCOUNT" => inbound_account(server, origin, message),
+        "BAN" => inbound_ban(server, origin, message),
+        "UNBAN" => inbound_unban(server, origin, message),
+        "GLOBOPS" => inbound_globops(server, origin, message),
         "PING" => {
             let token = message.param(0).unwrap_or_default();
             let name = server.name();
@@ -1429,9 +1540,36 @@ pub fn send_burst(server: &Arc<Server>, link: &Arc<ClientHandle>) {
         }
     }
 
+    // Bans are network state, so a server that reconnects must learn the
+    // active ones before its own users are introduced; otherwise it would
+    // admit an address the rest of the network already refuses.
+    for ban in server.active_bans() {
+        if !ban.kind.is_global() {
+            continue;
+        }
+        let mut message = Message::command("BAN");
+        message.prefix = Some(name.clone());
+        message.params.push(ban.kind.letter().to_string());
+        message.params.push(ban.set_at.to_string());
+        message.params.push(
+            ban.expires
+                .map(|value| value.to_string())
+                .unwrap_or_default(),
+        );
+        message.params.push(ban.set_by.clone());
+        message.params.push(ban.mask.clone());
+        message.params.push(ban.reason.clone());
+        link.send(&message, max_line);
+        messages += 1;
+    }
+
     let mut end = Message::command("EOB");
     end.prefix = Some(name);
     link.send(&end, max_line);
+    server.snotice(
+        super::Snomask::LINK,
+        &format!("Netburst to {peer} complete"),
+    );
     info!(peer = %peer, messages, "netburst sent");
 }
 

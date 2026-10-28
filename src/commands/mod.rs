@@ -17,7 +17,7 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 
 use crate::casemap::CaseMapping;
-use crate::config::OperFlag;
+use crate::config::OperPrivilege;
 use crate::error::CommandError;
 use crate::protocol::{Message, Numeric};
 use crate::server::{Channel, ClientHandle, Server};
@@ -46,8 +46,8 @@ pub enum Access {
     Unregistered,
     /// Registered users only.
     Registered,
-    /// Operators holding a specific flag.
-    Oper(OperFlag),
+    /// Operators holding every privilege in the set.
+    Oper(OperPrivilege),
 }
 
 /// One row of the command table.
@@ -94,12 +94,15 @@ command_table! {
     "BENCH" => admin::BENCH,
     "CAP" => registration::CAP,
     "COMPRESS" => admin::COMPRESS,
+    "GLOBOPS" => admin::GLOBOPS,
+    "GLINE" => admin::GLINE,
     "INFO" => admin::INFO,
     "INVITE" => channel::INVITE,
     "ISON" => messaging::ISON,
     "JOIN" => channel::JOIN,
     "KICK" => channel::KICK,
     "KILL" => admin::KILL,
+    "KLINE" => admin::KLINE,
     "LINKS" => admin::LINKS,
     "LIST" => channel::LIST,
     "LOGOUT" => registration::LOGOUT,
@@ -117,16 +120,21 @@ command_table! {
     "PRIVMSG" => messaging::PRIVMSG,
     "QUIT" => registration::QUIT,
     "REHASH" => admin::REHASH,
+    "SAMODE" => admin::SAMODE,
+    "SHUN" => admin::SHUN,
+    "SNOMASK" => admin::SNOMASK,
     "STATS" => admin::STATS,
     "TIME" => admin::TIME,
     "TOPIC" => channel::TOPIC,
     "USER" => registration::USER,
+    "UNBAN" => admin::UNBAN,
     "USERHOST" => messaging::USERHOST,
     "VERSION" => admin::VERSION,
     "WALLOPS" => admin::WALLOPS,
     "WHO" => messaging::WHO,
     "WHOIS" => messaging::WHOIS,
     "WHOWAS" => messaging::WHOWAS,
+    "ZLINE" => admin::ZLINE,
 }
 
 /// Every registered command name, mostly useful for diagnostics.
@@ -237,6 +245,11 @@ impl Cmd {
         self.client.session(|session| session.modes.oper)
     }
 
+    /// True when the sender holds every privilege in `wanted`.
+    pub fn has_privilege(&self, wanted: OperPrivilege) -> bool {
+        self.server.has_privilege(&self.client, wanted)
+    }
+
     /// Send a `PRIVMSG`-style payload with the sender's mask.
     pub fn message_to(&self, target: &str, command: &str, text: &str) {
         let mut message = Message::command(command);
@@ -296,7 +309,7 @@ mod tests {
             assert_eq!(found.min_params, spec.min_params);
             assert_eq!(found.access, spec.access);
         }
-        assert_eq!(CLIENT_COMMANDS.len(), 39);
+        assert_eq!(CLIENT_COMMANDS.len(), 47);
     }
 
     #[test]

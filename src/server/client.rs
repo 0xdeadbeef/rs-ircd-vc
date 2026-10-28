@@ -17,6 +17,7 @@ use tokio::sync::mpsc;
 use tracing::warn;
 
 use crate::casemap::CaseMapping;
+use crate::config::OperPrivilege;
 use crate::protocol::Message;
 use crate::util::now_unix;
 
@@ -158,6 +159,100 @@ fn carries_label(bytes: &[u8]) -> bool {
         .any(|tag| tag == b"label" || tag.starts_with(b"label="))
 }
 
+/// Server notice categories an operator can subscribe to.
+///
+/// One bit per category, so filtering a notice is a single masked test per
+/// recipient instead of a list scan. The letters match the `SNOMASK` argument
+/// and are what `MODE +s` prints back, which is how other IRCds spell them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Snomask(u16);
+
+impl Snomask {
+    /// Nothing subscribed.
+    pub const NONE: Snomask = Snomask(0);
+    /// `c`: local client connections.
+    pub const CONNECT: Snomask = Snomask(1 << 0);
+    /// `q`: local disconnects and quits.
+    pub const QUIT: Snomask = Snomask(1 << 1);
+    /// `k`: kills and ban enforcement.
+    pub const KILL: Snomask = Snomask(1 << 2);
+    /// `o`: operator authentication.
+    pub const OPER: Snomask = Snomask(1 << 3);
+    /// `r`: configuration reloads.
+    pub const REHASH: Snomask = Snomask(1 << 4);
+    /// `l`: link establishment and loss.
+    pub const LINK: Snomask = Snomask(1 << 5);
+    /// `b`: server bans set, lifted or triggered.
+    pub const BAN: Snomask = Snomask(1 << 6);
+    /// `g`: `GLOBOPS` traffic.
+    pub const GLOBAL: Snomask = Snomask(1 << 7);
+    /// Every category.
+    pub const ALL: Snomask = Snomask(0xFF);
+
+    /// Parse a letter list, returning `None` for an unknown letter.
+    pub fn from_letters(letters: &str) -> Option<Self> {
+        let mut mask = Snomask::NONE;
+        for letter in letters.chars() {
+            let bit = match letter {
+                'c' => Snomask::CONNECT,
+                'q' => Snomask::QUIT,
+                'k' => Snomask::KILL,
+                'o' => Snomask::OPER,
+                'r' => Snomask::REHASH,
+                'l' => Snomask::LINK,
+                'b' => Snomask::BAN,
+                'g' => Snomask::GLOBAL,
+                '*' => Snomask::ALL,
+                _ => return None,
+            };
+            mask = mask.union(bit);
+        }
+        Some(mask)
+    }
+
+    /// Canonical letter string, or `*` when every category is enabled.
+    pub fn letters(self) -> String {
+        if self.contains(Snomask::ALL) {
+            return "*".to_owned();
+        }
+        const TABLE: [(char, Snomask); 8] = [
+            ('c', Snomask::CONNECT),
+            ('q', Snomask::QUIT),
+            ('k', Snomask::KILL),
+            ('o', Snomask::OPER),
+            ('r', Snomask::REHASH),
+            ('l', Snomask::LINK),
+            ('b', Snomask::BAN),
+            ('g', Snomask::GLOBAL),
+        ];
+        TABLE
+            .iter()
+            .filter(|(_, bit)| self.contains(*bit))
+            .map(|(letter, _)| *letter)
+            .collect()
+    }
+
+    /// True when every bit in `other` is enabled.
+    pub fn contains(self, other: Snomask) -> bool {
+        self.0 & other.0 == other.0
+    }
+
+    /// Add every bit in `other`.
+    pub fn union(self, other: Snomask) -> Self {
+        Snomask(self.0 | other.0)
+    }
+
+    /// Remove every bit in `other`.
+    pub fn difference(self, other: Snomask) -> Self {
+        Snomask(self.0 & !other.0)
+    }
+
+    /// True when nothing is subscribed.
+    pub fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+}
+
 /// User mode flags.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct UserModes {
@@ -167,6 +262,8 @@ pub struct UserModes {
     pub wallops: bool,
     /// `+o`: operator.
     pub oper: bool,
+    /// `+s`: receives the server notices named by [`Session::snomasks`].
+    pub snomask: bool,
 }
 
 impl UserModes {
@@ -179,6 +276,9 @@ impl UserModes {
         if self.wallops {
             flags.push('w');
         }
+        if self.snomask {
+            flags.push('s');
+        }
         if self.oper {
             flags.push('o');
         }
@@ -190,6 +290,7 @@ impl UserModes {
         let slot = match mode {
             'i' => &mut self.invisible,
             'w' => &mut self.wallops,
+            's' => &mut self.snomask,
             'o' => &mut self.oper,
             _ => return false,
         };
@@ -261,6 +362,11 @@ pub struct Session {
     pub away: Option<String>,
     /// Operator account name.
     pub oper: Option<String>,
+    /// Privileges granted by the operator's configuration entry, cached so an
+    /// authorisation check does not search the configuration on every command.
+    pub privileges: OperPrivilege,
+    /// Server notice categories this session subscribed to with `+s`/`SNOMASK`.
+    pub snomasks: Snomask,
     /// Account authenticated through SASL, if any.
     pub account: Option<String>,
     /// SASL exchange awaiting more input.

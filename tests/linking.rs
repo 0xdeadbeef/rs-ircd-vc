@@ -1035,3 +1035,89 @@ impl Peer {
         }
     }
 }
+
+#[tokio::test]
+async fn network_bans_are_relayed_to_peers() {
+    let harness = start().await;
+    let mut peer = Peer::connect(harness.link_addr, "alpha.test", "0AA").await;
+
+    let ban = ircd::server::ServerBan::new(
+        ircd::server::BanKind::Gline,
+        "*!*@bad.example",
+        "admin",
+        None,
+        "abuse",
+    );
+    harness.server.add_ban(ban.clone());
+    ircd::server::link::ban_added(&harness.server, &ban);
+    let line = peer.expect(" BAN G ").await;
+    assert!(line.contains("*!*@bad.example"), "got {line:?}");
+
+    ircd::server::link::ban_removed(
+        &harness.server,
+        ircd::server::BanKind::Gline,
+        "*!*@bad.example",
+    );
+    let line = peer.expect(" UNBAN G ").await;
+    assert!(line.contains("*!*@bad.example"), "got {line:?}");
+}
+
+#[tokio::test]
+async fn inbound_bans_are_applied_and_forwarded() {
+    let harness = start().await;
+    let mut alpha = Peer::connect(harness.link_addr, "alpha.test", "0AA").await;
+    let mut beta = Peer::connect(harness.link_addr, "beta.test", "0BB").await;
+    let _ = alpha.collect(Duration::from_millis(50)).await;
+    let _ = beta.collect(Duration::from_millis(50)).await;
+
+    alpha
+        .send(":alpha.test BAN Z 1700000000 0 remote 192.0.2.9 :scanner")
+        .await;
+    let forwarded = beta.expect(" BAN Z ").await;
+    assert!(forwarded.contains("192.0.2.9"), "got {forwarded:?}");
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    while !harness
+        .server
+        .active_bans()
+        .iter()
+        .any(|ban| ban.mask == "192.0.2.9")
+    {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the relayed ban was never applied"
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    alpha.send(":alpha.test UNBAN Z 192.0.2.9").await;
+    beta.expect(" UNBAN Z ").await;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    while harness
+        .server
+        .active_bans()
+        .iter()
+        .any(|ban| ban.mask == "192.0.2.9")
+    {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the lifted ban stayed active"
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+}
+
+#[tokio::test]
+async fn netburst_replays_active_network_bans() {
+    let harness = start().await;
+    harness.server.add_ban(ircd::server::ServerBan::new(
+        ircd::server::BanKind::Gline,
+        "*!*@burst.example",
+        "admin",
+        None,
+        "burst",
+    ));
+    let mut peer = Peer::connect(harness.link_addr, "alpha.test", "0AA").await;
+    let line = peer.expect(" BAN G ").await;
+    assert!(line.contains("burst.example"), "got {line:?}");
+}
