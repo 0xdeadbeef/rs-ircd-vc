@@ -9,9 +9,9 @@
 | Cases | 14 |
 | Operations per round | 20000 |
 | Rounds | 7 |
-| Slowest case | `ban/match_16th` at 1.83 us |
-| Cases above 10% variation | 0 |
-| Commit | `6fb5905` |
+| Slowest case | `ban/match_16th` at 2.24 us |
+| Cases above 10% variation | 5 |
+| Commit | `cb5cea2` |
 
 ## Measurements
 
@@ -19,20 +19,20 @@
 
 | Case | Median | Min | Max | cv | Implied rate | Iterations |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `parse/plain` | 150.7 ns | 150.1 ns | 153.8 ns | 0.8% | 6.6 M/s | 20000 |
-| `parse/tagged` | 471.9 ns | 471.2 ns | 473.2 ns | 0.2% | 2.1 M/s | 20000 |
-| `parse/reject_control` | 11.5 ns | 10.8 ns | 12.0 ns | 4.7% | 86.9 M/s | 20000 |
-| `serialise/untagged` | 26.8 ns | 26.4 ns | 27.4 ns | 1.3% | 37.3 M/s | 20000 |
-| `serialise/tagged` | 141.4 ns | 140.6 ns | 145.4 ns | 1.1% | 7.1 M/s | 20000 |
-| `casemap/fold` | 45.1 ns | 41.7 ns | 47.4 ns | 5.1% | 22.2 M/s | 20000 |
-| `casemap/eq` | 18.8 ns | 17.9 ns | 19.3 ns | 2.6% | 53.1 M/s | 20000 |
-| `wildcard/hostmask` | 45.4 ns | 45.0 ns | 46.0 ns | 0.7% | 22.0 M/s | 20000 |
-| `wildcard/miss` | 64.2 ns | 63.9 ns | 65.3 ns | 0.7% | 15.6 M/s | 20000 |
-| `ban/match_16th` | 1.83 us | 1.80 us | 1.84 us | 0.9% | 546 k/s | 20000 |
-| `dispatch/hit` | 2.5 ns | 2.2 ns | 2.5 ns | 4.4% | 402.3 M/s | 20000 |
-| `dispatch/miss` | 1.9 ns | 1.9 ns | 1.9 ns | 0.0% | 535.0 M/s | 20000 |
-| `validate/nickname` | 17.1 ns | 16.7 ns | 18.0 ns | 2.9% | 58.4 M/s | 20000 |
-| `format/numeric` | 49.8 ns | 49.0 ns | 50.9 ns | 1.3% | 20.1 M/s | 20000 |
+| `parse/plain` | 189.0 ns | 184.4 ns | 196.8 ns | 2.1% | 5.3 M/s | 20000 |
+| `parse/tagged` | 605.3 ns | 600.1 ns | 612.6 ns | 0.7% | 1.7 M/s | 20000 |
+| `parse/reject_control` | 14.3 ns | 11.1 ns | 18.3 ns | 18.6% | 70.0 M/s | 20000 |
+| `serialise/untagged` | 29.2 ns | 23.5 ns | 34.8 ns | 13.8% | 34.2 M/s | 20000 |
+| `serialise/tagged` | 173.4 ns | 165.3 ns | 180.5 ns | 3.3% | 5.8 M/s | 20000 |
+| `casemap/fold` | 51.6 ns | 50.2 ns | 53.0 ns | 1.6% | 19.4 M/s | 20000 |
+| `casemap/eq` | 35.9 ns | 24.6 ns | 39.5 ns | 16.7% | 27.9 M/s | 20000 |
+| `wildcard/hostmask` | 55.4 ns | 53.6 ns | 59.4 ns | 3.8% | 18.1 M/s | 20000 |
+| `wildcard/miss` | 86.6 ns | 79.5 ns | 89.6 ns | 4.2% | 11.6 M/s | 20000 |
+| `ban/match_16th` | 2.24 us | 2.18 us | 2.26 us | 1.1% | 447 k/s | 20000 |
+| `dispatch/hit` | 3.1 ns | 2.8 ns | 6.0 ns | 30.3% | 322.3 M/s | 20000 |
+| `dispatch/miss` | 2.7 ns | 2.7 ns | 2.8 ns | 1.1% | 369.3 M/s | 20000 |
+| `validate/nickname` | 20.8 ns | 16.7 ns | 29.0 ns | 19.6% | 48.1 M/s | 20000 |
+| `format/numeric` | 65.4 ns | 60.8 ns | 71.9 ns | 6.4% | 15.3 M/s | 20000 |
 
 ## Interpretation
 

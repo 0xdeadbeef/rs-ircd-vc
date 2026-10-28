@@ -20,10 +20,11 @@ use parking_lot::RwLock;
 use tracing::{debug, info, warn};
 
 use crate::commands::is_channel_name;
+use crate::config::LinkSection;
 use crate::protocol::{Message, Numeric};
 use crate::server::channel::{BanEntry, MemberMode};
 use crate::server::{Channel, ClientHandle, ClientId, Server};
-use crate::util::now_unix;
+use crate::util::{now_unix, secret_matches};
 
 /// Longest chain of servers an introduction may cross.
 const MAX_HOPS: u32 = 16;
@@ -198,23 +199,129 @@ pub async fn handle(server: &Arc<Server>, link: &Arc<ClientHandle>, message: &Me
     }
 }
 
+/// Why a `SERVER` introduction was refused.
+///
+/// The variants exist so the admission policy can be tested without a socket:
+/// [`admit`] decides, and the handshake only turns the result into wire text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Refusal {
+    /// An inbound peer sent `SERVER` before a successful `PASS`.
+    PassRequired,
+    /// The introduction carried no server name.
+    MissingName,
+    /// The peer allowlist is configured and does not contain this name.
+    NotAPeer,
+    /// The peer claimed this server's own name.
+    SelfLink,
+    /// A dialled link named a server that is not configured.
+    NotAConfiguredLink,
+    /// A route to this server already exists, so accepting it would form a
+    /// cycle.
+    AlreadyConnected,
+}
+
+impl Refusal {
+    /// Wire text sent to the refused peer.
+    ///
+    /// These strings are part of the operator-visible behaviour, so they are
+    /// defined once here rather than in the handshake.
+    pub fn reason(self) -> &'static str {
+        match self {
+            Refusal::PassRequired => "PASS required before SERVER",
+            Refusal::MissingName => "SERVER requires a name",
+            Refusal::NotAPeer => "Server is not configured as a peer",
+            Refusal::SelfLink => "Cannot link to myself",
+            Refusal::NotAConfiguredLink => "Server is not a configured link",
+            Refusal::AlreadyConnected => "Server is already connected",
+        }
+    }
+}
+
+/// What the handshake knows about a connection that has sent `SERVER`.
+#[derive(Debug, Clone, Copy)]
+pub struct ServerIntroduction<'a> {
+    /// Server name the peer claims.
+    pub name: &'a str,
+    /// True when this server opened the connection.
+    pub dialing: bool,
+    /// True when `PASS` already matched this connection.
+    pub pass_ok: bool,
+    /// True when a route to `name` already exists.
+    pub already_connected: bool,
+}
+
+/// Decide whether a peer may be admitted.
+///
+/// The order is deliberate and matches the wire behaviour: authentication is
+/// checked before anything the peer said, then the name, then the allowlist and
+/// topology rules. A dialled link has already authenticated when it opened the
+/// socket, so it does not need `PASS`; an inbound peer does.
+///
+/// # Errors
+///
+/// Returns the first [`Refusal`] that applies.
+pub fn admit(
+    server_name: &str,
+    peers: &[String],
+    links: &[LinkSection],
+    introduction: &ServerIntroduction<'_>,
+) -> std::result::Result<(), Refusal> {
+    if !introduction.dialing && !introduction.pass_ok {
+        return Err(Refusal::PassRequired);
+    }
+    if introduction.name.is_empty() {
+        return Err(Refusal::MissingName);
+    }
+    if !peers.is_empty()
+        && !peers
+            .iter()
+            .any(|peer| peer.eq_ignore_ascii_case(introduction.name))
+    {
+        return Err(Refusal::NotAPeer);
+    }
+    if introduction.name.eq_ignore_ascii_case(server_name) {
+        return Err(Refusal::SelfLink);
+    }
+    if introduction.dialing
+        && !links
+            .iter()
+            .any(|link| link.name.eq_ignore_ascii_case(introduction.name))
+    {
+        return Err(Refusal::NotAConfiguredLink);
+    }
+    if introduction.already_connected {
+        return Err(Refusal::AlreadyConnected);
+    }
+    Ok(())
+}
+
+/// Resolve the configured link password.
+///
+/// A missing variable and an empty variable both mean the same thing: links are
+/// refused until the operator configures one. Reporting this as "not
+/// configured" rather than "invalid password" matters, because it tells an
+/// operator what to fix.
+pub fn usable_link_password(configured: Option<&str>) -> Option<&str> {
+    configured.filter(|password| !password.is_empty())
+}
+
 // MARK: security: critical: SEC-LINK-001: a link is refused unless the configured password matches.
 fn handshake(server: &Arc<Server>, link: &Arc<ClientHandle>, message: &Message) {
     match message.command.as_str() {
         "PASS" => {
             let config = server.cfg();
-            let expected = config
+            let configured = config
                 .server
                 .link_password_env
                 .as_deref()
-                .and_then(|variable| std::env::var(variable).ok())
-                .filter(|value| !value.is_empty());
-            let Some(expected) = expected else {
+                .and_then(|variable| std::env::var(variable).ok());
+            let Some(expected) = usable_link_password(configured.as_deref()) else {
                 reject(server, link, "Link authentication is not configured");
                 return;
             };
             let supplied = message.param(0).unwrap_or_default();
-            if supplied == expected {
+            // MARK: security: high: SEC-LINK-002: digests are compared, so neither content nor length leaks.
+            if secret_matches(expected, supplied) {
                 link.session_mut(|session| session.pass_ok = true);
             } else {
                 reject(server, link, "Invalid link password");
@@ -222,44 +329,22 @@ fn handshake(server: &Arc<Server>, link: &Arc<ClientHandle>, message: &Message) 
         }
         "SERVER" => {
             let config = server.cfg();
-            // A dialled link authenticated itself when it opened the socket; an
-            // inbound peer has to send PASS first.
-            if !link.dialing && !link.session(|session| session.pass_ok) {
-                reject(server, link, "PASS required before SERVER");
-                return;
-            }
             let name = message.param(0).unwrap_or_default().to_owned();
-            if name.is_empty() {
-                reject(server, link, "SERVER requires a name");
-                return;
-            }
-            if !config.server.peers.is_empty()
-                && !config
-                    .server
-                    .peers
-                    .iter()
-                    .any(|peer| peer.eq_ignore_ascii_case(&name))
-            {
-                reject(server, link, "Server is not configured as a peer");
-                return;
-            }
-            if name.eq_ignore_ascii_case(&config.server.name) {
-                reject(server, link, "Cannot link to myself");
-                return;
-            }
-            if link.dialing
-                && !config
-                    .links
-                    .iter()
-                    .any(|configured| configured.name.eq_ignore_ascii_case(&name))
-            {
-                reject(server, link, "Server is not a configured link");
-                return;
-            }
-            // A second path to a known server would turn the tree into a
-            // cycle, so the newcomer is dropped instead.
-            if server.route(&name).is_some() {
-                reject(server, link, "Server is already connected");
+            // The policy lives in `admit`, so every rule below is exercised by
+            // the audit harness without opening a socket.
+            let introduction = ServerIntroduction {
+                name: &name,
+                dialing: link.dialing,
+                pass_ok: link.session(|session| session.pass_ok),
+                already_connected: server.route(&name).is_some(),
+            };
+            if let Err(refusal) = admit(
+                &config.server.name,
+                &config.server.peers,
+                &config.links,
+                &introduction,
+            ) {
+                reject(server, link, refusal.reason());
                 return;
             }
 

@@ -1,9 +1,9 @@
 {
   "environment": {
     "arch": "x86_64",
-    "commit": "6fb5905",
+    "commit": "cb5cea2",
     "cores": 8,
-    "generated": "2026-10-28T19:17:41.598005472Z",
+    "generated": "2026-10-28T19:33:42.266896752Z",
     "os": "linux",
     "profile": "release",
     "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
@@ -82,7 +82,7 @@
           "code_lines": 300,
           "debug_prints": 0,
           "expects": 1,
-          "lines": 379,
+          "lines": 380,
           "panics": 0,
           "path": "src/auth.rs",
           "stubs": 0,
@@ -166,7 +166,7 @@
           "code_lines": 616,
           "debug_prints": 0,
           "expects": 1,
-          "lines": 818,
+          "lines": 819,
           "panics": 0,
           "path": "src/config.rs",
           "stubs": 0,
@@ -298,7 +298,7 @@
           "code_lines": 163,
           "debug_prints": 0,
           "expects": 6,
-          "lines": 215,
+          "lines": 216,
           "panics": 0,
           "path": "src/net/tls.rs",
           "stubs": 0,
@@ -391,10 +391,10 @@
         },
         {
           "allows": 0,
-          "code_lines": 1397,
+          "code_lines": 1442,
           "debug_prints": 0,
           "expects": 0,
-          "lines": 1637,
+          "lines": 1722,
           "panics": 0,
           "path": "src/server/link.rs",
           "stubs": 0,
@@ -415,10 +415,10 @@
         },
         {
           "allows": 0,
-          "code_lines": 145,
+          "code_lines": 161,
           "debug_prints": 0,
           "expects": 0,
-          "lines": 186,
+          "lines": 220,
           "panics": 0,
           "path": "src/util.rs",
           "stubs": 0,
@@ -429,11 +429,11 @@
       "name": "src",
       "totals": {
         "allows": 0,
-        "code_lines": 10294,
+        "code_lines": 10355,
         "debug_prints": 3,
         "expects": 59,
         "files": 29,
-        "lines": 12620,
+        "lines": 12742,
         "panics": 1,
         "stubs": 0,
         "unsafe_blocks": 8,
@@ -569,10 +569,10 @@
         },
         {
           "allows": 0,
-          "code_lines": 620,
+          "code_lines": 659,
           "debug_prints": 0,
           "expects": 1,
-          "lines": 693,
+          "lines": 733,
           "panics": 0,
           "path": "src/bin/audit/report.rs",
           "stubs": 0,
@@ -581,10 +581,10 @@
         },
         {
           "allows": 0,
-          "code_lines": 550,
+          "code_lines": 941,
           "debug_prints": 0,
-          "expects": 1,
-          "lines": 675,
+          "expects": 42,
+          "lines": 1096,
           "panics": 0,
           "path": "src/bin/audit/security.rs",
           "stubs": 0,
@@ -607,11 +607,11 @@
       "name": "src/bin",
       "totals": {
         "allows": 2,
-        "code_lines": 2224,
+        "code_lines": 2654,
         "debug_prints": 18,
-        "expects": 5,
+        "expects": 46,
         "files": 6,
-        "lines": 2704,
+        "lines": 3165,
         "panics": 1,
         "stubs": 2,
         "unsafe_blocks": 5,
@@ -640,7 +640,7 @@
       "category": "security",
       "file": "src/server/link.rs",
       "id": "SEC-LINK-001",
-      "line": 201,
+      "line": 308,
       "severity": "critical",
       "text": "a link is refused unless the configured password matches."
     },
@@ -670,11 +670,43 @@
     },
     {
       "category": "security",
+      "file": "src/server/link.rs",
+      "id": "SEC-LINK-002",
+      "line": 323,
+      "severity": "high",
+      "text": "digests are compared, so neither content nor length leaks."
+    },
+    {
+      "category": "security",
+      "file": "src/auth.rs",
+      "id": "SEC-PIN-001",
+      "line": 183,
+      "severity": "high",
+      "text": "the fingerprint must match exactly and the authzid binds the name."
+    },
+    {
+      "category": "security",
+      "file": "src/util.rs",
+      "id": "SEC-SECRET-001",
+      "line": 137,
+      "severity": "high",
+      "text": "secrets are compared by digest, never byte-wise."
+    },
+    {
+      "category": "security",
       "file": "src/protocol/message.rs",
       "id": "SEC-TAG-001",
       "line": 182,
       "severity": "high",
       "text": "relays only `+` tags and allowlisted vendor tags."
+    },
+    {
+      "category": "security",
+      "file": "src/net/tls.rs",
+      "id": "SEC-TLS-001",
+      "line": 110,
+      "severity": "high",
+      "text": "identity comes from the pinned fingerprint, not a CA chain."
     },
     {
       "category": "security",
@@ -691,6 +723,14 @@
       "line": 260,
       "severity": "medium",
       "text": "clamps the ceiling so output stays terminated."
+    },
+    {
+      "category": "security",
+      "file": "src/config.rs",
+      "id": "SEC-PIN-002",
+      "line": 608,
+      "severity": "medium",
+      "text": "fingerprints are shape-checked here, normalised at load."
     },
     {
       "category": "safety",
@@ -793,13 +833,37 @@
         "passed": true
       },
       {
+        "detail": "11 cases: exact match, prefix and suffix rejected, unset and empty configuration refused",
+        "id": "C-LINK-PASS",
+        "name": "Link passwords are matched exactly and never default to open",
+        "passed": true
+      },
+      {
+        "detail": "12 cases: PASS, name, allowlist, self-link, configured-link and duplicate-path rules",
+        "id": "C-LINK-ADMIT",
+        "name": "Server introductions are admitted only by the configured policy",
+        "passed": true
+      },
+      {
+        "detail": "10 cases: exact match, authzid binding, case folding, no partial or foreign match",
+        "id": "C-PIN",
+        "name": "Certificate fingerprints are pinned to exactly one account",
+        "passed": true
+      },
+      {
+        "detail": "8 cases: 64 hex digits accepted; short, long, non-hex, duplicate and credential-less entries rejected",
+        "id": "C-PIN-CONFIG",
+        "name": "Pinned fingerprints are shape-checked before the daemon starts",
+        "passed": true
+      },
+      {
         "detail": "50000 lines, 26116 accepted, 23884 rejected, 0 invariant failures",
         "id": "C-SOAK",
         "name": "Generated input never panics and always yields a decision",
         "passed": true
       },
       {
-        "detail": "1024 B: 1.83 ns/B, 10240 B: 1.79 ns/B, 102400 B: 1.78 ns/B",
+        "detail": "1024 B: 1.80 ns/B, 10240 B: 1.78 ns/B, 102400 B: 1.78 ns/B",
         "id": "C-WILD",
         "name": "Adversarial wildcard matching stays linear in the input",
         "passed": true
@@ -807,45 +871,57 @@
     ],
     "probes": [
       {
-        "median_ns": 7687.5561,
+        "median_ns": 7674.23195,
         "name": "constant_time_eq/equal"
       },
       {
-        "median_ns": 7680.9821,
+        "median_ns": 7659.4392,
         "name": "constant_time_eq/differs_first"
       },
       {
-        "median_ns": 7677.18105,
+        "median_ns": 7711.68325,
         "name": "constant_time_eq/differs_last"
       },
       {
-        "median_ns": 53.4913,
+        "median_ns": 53.1927,
         "name": "str_eq/equal"
       },
       {
-        "median_ns": 3.4134,
+        "median_ns": 3.41335,
         "name": "str_eq/differs_first"
       },
       {
-        "median_ns": 54.86335,
+        "median_ns": 55.80415,
         "name": "str_eq/differs_last"
+      },
+      {
+        "median_ns": 2947.50135,
+        "name": "secret_matches/equal"
+      },
+      {
+        "median_ns": 3731.47545,
+        "name": "secret_matches/differs_first"
+      },
+      {
+        "median_ns": 3785.70375,
+        "name": "secret_matches/differs_last"
       }
     ],
     "scaling": [
       {
         "bytes": 1024,
-        "ns_per_byte": 1.8262208781362008,
-        "ns_per_call": 1870.0501792114696
+        "ns_per_byte": 1.8048245087685613,
+        "ns_per_call": 1848.1402969790067
       },
       {
         "bytes": 10240,
-        "ns_per_byte": 1.791931590544872,
-        "ns_per_call": 18349.37948717949
+        "ns_per_byte": 1.7793980368589744,
+        "ns_per_call": 18221.035897435897
       },
       {
         "bytes": 102400,
-        "ns_per_byte": 1.777160773026316,
-        "ns_per_call": 181981.26315789475
+        "ns_per_byte": 1.778102898848684,
+        "ns_per_call": 182077.73684210525
       }
     ],
     "soak": {
@@ -890,12 +966,12 @@
         "name": "parse/plain",
         "note": "one prefix, two parameters; allocates each present field",
         "sample": {
-          "cv_pct": 0.8450669274369684,
+          "cv_pct": 2.11157459160877,
           "iterations": 20000,
-          "max_ns": 153.7518,
-          "median_ns": 150.72915,
-          "min_ns": 150.0629,
-          "ops_per_second": 6634416.766763429,
+          "max_ns": 196.795,
+          "median_ns": 188.97135,
+          "min_ns": 184.39625,
+          "ops_per_second": 5291807.461818947,
           "rounds": 7
         }
       },
@@ -903,12 +979,12 @@
         "name": "parse/tagged",
         "note": "three IRCv3 tags plus the same body as `parse/plain`",
         "sample": {
-          "cv_pct": 0.1621927469104106,
+          "cv_pct": 0.6544353851374473,
           "iterations": 20000,
-          "max_ns": 473.22535,
-          "median_ns": 471.90035,
-          "min_ns": 471.184,
-          "ops_per_second": 2119091.456490761,
+          "max_ns": 612.59515,
+          "median_ns": 605.283,
+          "min_ns": 600.10025,
+          "ops_per_second": 1652119.752248122,
           "rounds": 7
         }
       },
@@ -916,12 +992,12 @@
         "name": "parse/reject_control",
         "note": "the injection guard: cost of rejecting a line with one control byte",
         "sample": {
-          "cv_pct": 4.7260018202444405,
+          "cv_pct": 18.56698796094463,
           "iterations": 20000,
-          "max_ns": 12.0441,
-          "median_ns": 11.50355,
-          "min_ns": 10.80925,
-          "ops_per_second": 86929686.92273255,
+          "max_ns": 18.2928,
+          "median_ns": 14.28985,
+          "min_ns": 11.11785,
+          "ops_per_second": 69979740.86501957,
           "rounds": 7
         }
       },
@@ -929,12 +1005,12 @@
         "name": "serialise/untagged",
         "note": "reuses one buffer, so this is the encode cost without allocation",
         "sample": {
-          "cv_pct": 1.2904151864587214,
+          "cv_pct": 13.753072604031091,
           "iterations": 20000,
-          "max_ns": 27.4159,
-          "median_ns": 26.79375,
-          "min_ns": 26.3955,
-          "ops_per_second": 37322136.69232564,
+          "max_ns": 34.8238,
+          "median_ns": 29.2413,
+          "min_ns": 23.5046,
+          "ops_per_second": 34198205.96211523,
           "rounds": 7
         }
       },
@@ -942,12 +1018,12 @@
         "name": "serialise/tagged",
         "note": "three tags including one client tag; same reused-buffer method",
         "sample": {
-          "cv_pct": 1.065562622950426,
+          "cv_pct": 3.263367020316885,
           "iterations": 20000,
-          "max_ns": 145.41965,
-          "median_ns": 141.4086,
-          "min_ns": 140.6287,
-          "ops_per_second": 7071705.681266909,
+          "max_ns": 180.4662,
+          "median_ns": 173.41465,
+          "min_ns": 165.335,
+          "ops_per_second": 5766525.492511734,
           "rounds": 7
         }
       },
@@ -955,12 +1031,12 @@
         "name": "casemap/fold",
         "note": "RFC 1459 fold of a 24-byte nickname into a fresh String",
         "sample": {
-          "cv_pct": 5.136564080953353,
+          "cv_pct": 1.6290102397181114,
           "iterations": 20000,
-          "max_ns": 47.4014,
-          "median_ns": 45.08405,
-          "min_ns": 41.7127,
-          "ops_per_second": 22180793.429161757,
+          "max_ns": 52.9628,
+          "median_ns": 51.576750000000004,
+          "min_ns": 50.1796,
+          "ops_per_second": 19388581.095164,
           "rounds": 7
         }
       },
@@ -968,12 +1044,12 @@
         "name": "casemap/eq",
         "note": "case-insensitive comparison with no allocation",
         "sample": {
-          "cv_pct": 2.6211239412499747,
+          "cv_pct": 16.660376043341827,
           "iterations": 20000,
-          "max_ns": 19.2947,
-          "median_ns": 18.8238,
-          "min_ns": 17.90005,
-          "ops_per_second": 53124236.339102626,
+          "max_ns": 39.4755,
+          "median_ns": 35.8542,
+          "min_ns": 24.614150000000002,
+          "ops_per_second": 27890735.25556281,
           "rounds": 7
         }
       },
@@ -981,12 +1057,12 @@
         "name": "wildcard/hostmask",
         "note": "`*!*@*.example.org` against a matching mask",
         "sample": {
-          "cv_pct": 0.7170293728157967,
+          "cv_pct": 3.828344923453707,
           "iterations": 20000,
-          "max_ns": 45.96875,
-          "median_ns": 45.3535,
-          "min_ns": 45.04095,
-          "ops_per_second": 22049014.96025665,
+          "max_ns": 59.4154,
+          "median_ns": 55.39785,
+          "min_ns": 53.6005,
+          "ops_per_second": 18051242.060838103,
           "rounds": 7
         }
       },
@@ -994,12 +1070,12 @@
         "name": "wildcard/miss",
         "note": "the same mask against a non-matching host, so the scan runs to the end",
         "sample": {
-          "cv_pct": 0.7237587484997019,
+          "cv_pct": 4.18510596222873,
           "iterations": 20000,
-          "max_ns": 65.2644,
-          "median_ns": 64.2239,
-          "min_ns": 63.9058,
-          "ops_per_second": 15570527.482759533,
+          "max_ns": 89.6386,
+          "median_ns": 86.5568,
+          "min_ns": 79.5001,
+          "ops_per_second": 11553107.323745795,
           "rounds": 7
         }
       },
@@ -1007,12 +1083,12 @@
         "name": "ban/match_16th",
         "note": "16 entries, match on the last one; the derived masks are built once",
         "sample": {
-          "cv_pct": 0.8820176276226532,
+          "cv_pct": 1.05853691712929,
           "iterations": 20000,
-          "max_ns": 1841.8517,
-          "median_ns": 1831.3039,
-          "min_ns": 1799.084,
-          "ops_per_second": 546059.0129251622,
+          "max_ns": 2258.1167,
+          "median_ns": 2235.96065,
+          "min_ns": 2179.10355,
+          "ops_per_second": 447235.0620302732,
           "rounds": 7
         }
       },
@@ -1020,12 +1096,12 @@
         "name": "dispatch/hit",
         "note": "command table lookup for an existing verb",
         "sample": {
-          "cv_pct": 4.3776258915002,
+          "cv_pct": 30.269784289195023,
           "iterations": 20000,
-          "max_ns": 2.4867,
-          "median_ns": 2.48565,
-          "min_ns": 2.1801,
-          "ops_per_second": 402309255.1244141,
+          "max_ns": 6.04585,
+          "median_ns": 3.1022999999999996,
+          "min_ns": 2.79675,
+          "ops_per_second": 322341488.5729943,
           "rounds": 7
         }
       },
@@ -1033,12 +1109,12 @@
         "name": "dispatch/miss",
         "note": "lookup of a verb that does not exist",
         "sample": {
-          "cv_pct": 0.04223363154355188,
+          "cv_pct": 1.1108570380077172,
           "iterations": 20000,
-          "max_ns": 1.871,
-          "median_ns": 1.869,
-          "min_ns": 1.8685,
-          "ops_per_second": 535045478.8657036,
+          "max_ns": 2.7697,
+          "median_ns": 2.70755,
+          "min_ns": 2.69505,
+          "ops_per_second": 369337593.02690625,
           "rounds": 7
         }
       },
@@ -1046,12 +1122,12 @@
         "name": "validate/nickname",
         "note": "RFC 1459 nickname validation, one pass over the bytes",
         "sample": {
-          "cv_pct": 2.908029697333497,
+          "cv_pct": 19.563883759581696,
           "iterations": 20000,
-          "max_ns": 18.0268,
-          "median_ns": 17.12155,
-          "min_ns": 16.6657,
-          "ops_per_second": 58405927.03347536,
+          "max_ns": 28.9558,
+          "median_ns": 20.77695,
+          "min_ns": 16.66725,
+          "ops_per_second": 48130259.73494666,
           "rounds": 7
         }
       },
@@ -1059,12 +1135,12 @@
         "name": "format/numeric",
         "note": "numeric reply rendered through Display, which allocates",
         "sample": {
-          "cv_pct": 1.3186566864565317,
+          "cv_pct": 6.383752962292363,
           "iterations": 20000,
-          "max_ns": 50.89600000000001,
-          "median_ns": 49.81490000000001,
-          "min_ns": 48.99785,
-          "ops_per_second": 20074315.114554077,
+          "max_ns": 71.8773,
+          "median_ns": 65.4011,
+          "min_ns": 60.808,
+          "ops_per_second": 15290262.702003483,
           "rounds": 7
         }
       }

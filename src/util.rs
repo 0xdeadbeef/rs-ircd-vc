@@ -134,6 +134,29 @@ pub fn constant_time_eq(left: &str, right: &str) -> bool {
     left.len() == right.len() && left.ct_eq(right).into()
 }
 
+// MARK: security: high: SEC-SECRET-001: secrets are compared by digest, never byte-wise.
+/// Compare a supplied secret with the configured one without leaking either.
+///
+/// Both sides are hashed first, so the comparison sees two fixed-length
+/// digests: neither the length of the secret nor the position of the first
+/// differing byte changes how much work is done. This is what a link password
+/// check needs, because there the secret arrives from the network.
+///
+/// # Arguments
+///
+/// * `expected` - the configured secret, from the environment
+/// * `supplied` - the value the peer presented on the wire
+///
+/// # Returns
+///
+/// `true` when the two secrets are identical.
+pub fn secret_matches(expected: &str, supplied: &str) -> bool {
+    constant_time_eq(
+        &sha256_hex(expected.as_bytes()),
+        &sha256_hex(supplied.as_bytes()),
+    )
+}
+
 /// Verify a plaintext password against a stored SHA-256 hex hash.
 pub fn verify_password(password: &str, stored_hash: &str) -> bool {
     constant_time_eq(
@@ -176,6 +199,17 @@ mod tests {
         );
         assert!(verify_password("hunter2", &hash));
         assert!(!verify_password("hunter3", &hash));
+    }
+
+    #[test]
+    fn secret_comparison_is_exact_and_length_independent() {
+        assert!(secret_matches("correct horse", "correct horse"));
+        assert!(!secret_matches("correct horse", "correct hors"));
+        assert!(!secret_matches("correct horse", "correct horse "));
+        assert!(!secret_matches("correct horse", ""));
+        assert!(!secret_matches("", "x"));
+        assert!(secret_matches("", ""));
+        assert!(!secret_matches("abc", "abd"));
     }
 
     #[test]

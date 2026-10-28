@@ -5,8 +5,11 @@
 //! a regression shows up as a failed row rather than a sentence in a design
 //! document.
 
+use ircd::auth::{AccountBackend, ConfigAccounts, Credential};
+use ircd::config::{AccountSection, Config, LinkSection, ListenSection};
 use ircd::protocol::{Message, ParseError};
-use ircd::util::{constant_time_eq, wildcard_match};
+use ircd::server::link::{admit, usable_link_password, Refusal, ServerIntroduction};
+use ircd::util::{constant_time_eq, secret_matches, sha256_hex, wildcard_match};
 
 use crate::speed::measure;
 
@@ -95,6 +98,10 @@ pub fn run(soak_iterations: u64, seed: u64) -> SecurityReport {
             length_ceiling(),
             parameter_ceiling(),
             tag_relay(),
+            link_password(),
+            link_admission(),
+            certificate_pinning(),
+            pinning_config(),
         ],
         ..SecurityReport::default()
     };
@@ -117,6 +124,386 @@ pub fn run(soak_iterations: u64, seed: u64) -> SecurityReport {
     report.checks.push(wildcard_scaling_check(&report.scaling));
     report.probes = probes();
     report
+}
+
+/// Collected expectations, so one check reports every case it tried.
+#[derive(Default)]
+struct Expectations {
+    cases: usize,
+    failures: Vec<String>,
+}
+
+impl Expectations {
+    fn expect(&mut self, label: &str, held: bool) {
+        self.cases += 1;
+        if !held {
+            self.failures.push(label.to_owned());
+        }
+    }
+
+    fn finish(self, id: &'static str, name: &str, pass_detail: String) -> Check {
+        Check {
+            id,
+            name: name.to_owned(),
+            passed: self.failures.is_empty(),
+            detail: if self.failures.is_empty() {
+                format!("{} cases: {pass_detail}", self.cases)
+            } else {
+                summarise(&self.failures)
+            },
+        }
+    }
+}
+
+/// Link passwords, and the resolution of the configured value.
+fn link_password() -> Check {
+    let mut expectations = Expectations::default();
+    expectations.expect(
+        "an identical password matches",
+        secret_matches(
+            "correct horse battery staple",
+            "correct horse battery staple",
+        ),
+    );
+    expectations.expect(
+        "a differing byte is rejected",
+        !secret_matches(
+            "correct horse battery staple",
+            "correct horse battery staplf",
+        ),
+    );
+    expectations.expect(
+        "a prefix is rejected",
+        !secret_matches(
+            "correct horse battery staple",
+            "correct horse battery stapl",
+        ),
+    );
+    expectations.expect(
+        "a suffix is rejected",
+        !secret_matches(
+            "correct horse battery staple",
+            "correct horse battery staple ",
+        ),
+    );
+    expectations.expect(
+        "a longer password is rejected",
+        !secret_matches("secret", "secretsecret"),
+    );
+    expectations.expect("an empty offer is rejected", !secret_matches("secret", ""));
+    expectations.expect(
+        "an empty configured value matches nothing",
+        !secret_matches("", "secret"),
+    );
+    let longest = "p".repeat(512);
+    expectations.expect(
+        "a password at the wire length matches itself",
+        secret_matches(&longest, &longest),
+    );
+    expectations.expect(
+        "an unset variable is not configured",
+        usable_link_password(None).is_none(),
+    );
+    expectations.expect(
+        "an empty variable is not configured",
+        usable_link_password(Some("")).is_none(),
+    );
+    expectations.expect(
+        "a configured variable is used verbatim",
+        usable_link_password(Some("secret")) == Some("secret"),
+    );
+    expectations.finish(
+        "C-LINK-PASS",
+        "Link passwords are matched exactly and never default to open",
+        "exact match, prefix and suffix rejected, unset and empty configuration refused".to_owned(),
+    )
+}
+
+/// An inbound peer's introduction, before any authentication.
+fn inbound(name: &str, pass_ok: bool, already_connected: bool) -> ServerIntroduction<'_> {
+    ServerIntroduction {
+        name,
+        dialing: false,
+        pass_ok,
+        already_connected,
+    }
+}
+
+/// This server's own outbound connection, which authenticated at socket open.
+fn outbound(name: &str, already_connected: bool) -> ServerIntroduction<'_> {
+    ServerIntroduction {
+        name,
+        dialing: true,
+        pass_ok: false,
+        already_connected,
+    }
+}
+
+/// The `SERVER` admission matrix.
+fn link_admission() -> Check {
+    let links = vec![LinkSection {
+        name: "alpha.test".to_owned(),
+        ..LinkSection::default()
+    }];
+    let peers = vec!["alpha.test".to_owned()];
+
+    let mut expectations = Expectations::default();
+    expectations.expect(
+        "an inbound peer without PASS is refused",
+        admit("irc.test", &[], &[], &inbound("alpha.test", false, false))
+            == Err(Refusal::PassRequired),
+    );
+    expectations.expect(
+        "an inbound peer with PASS is admitted",
+        admit("irc.test", &[], &[], &inbound("alpha.test", true, false)).is_ok(),
+    );
+    expectations.expect(
+        "a dialled link needs no PASS",
+        admit("irc.test", &[], &links, &outbound("alpha.test", false)).is_ok(),
+    );
+    expectations.expect(
+        "an empty name is refused",
+        admit("irc.test", &[], &[], &inbound("", true, false)) == Err(Refusal::MissingName),
+    );
+    expectations.expect(
+        "an unlisted peer is refused when the allowlist is set",
+        admit("irc.test", &peers, &[], &inbound("beta.test", true, false))
+            == Err(Refusal::NotAPeer),
+    );
+    expectations.expect(
+        "the peer allowlist is case-insensitive",
+        admit(
+            "irc.test",
+            &["ALPHA.TEST".to_owned()],
+            &[],
+            &inbound("alpha.test", true, false),
+        )
+        .is_ok(),
+    );
+    expectations.expect(
+        "a self-link is refused",
+        admit("irc.test", &[], &[], &inbound("irc.test", true, false)) == Err(Refusal::SelfLink),
+    );
+    expectations.expect(
+        "the self-link rule is case-insensitive",
+        admit("irc.test", &[], &[], &inbound("IRC.TEST", true, false)) == Err(Refusal::SelfLink),
+    );
+    expectations.expect(
+        "a dialled link must be a configured link",
+        admit("irc.test", &[], &links, &outbound("gamma.test", false))
+            == Err(Refusal::NotAConfiguredLink),
+    );
+    expectations.expect(
+        "a second path to a known server is refused",
+        admit("irc.test", &[], &[], &inbound("alpha.test", true, true))
+            == Err(Refusal::AlreadyConnected),
+    );
+    expectations.expect(
+        "authentication is checked before the name",
+        admit("irc.test", &[], &[], &inbound("", false, false)) == Err(Refusal::PassRequired),
+    );
+    expectations.expect(
+        "every refusal carries wire text",
+        [
+            Refusal::PassRequired,
+            Refusal::MissingName,
+            Refusal::NotAPeer,
+            Refusal::SelfLink,
+            Refusal::NotAConfiguredLink,
+            Refusal::AlreadyConnected,
+        ]
+        .iter()
+        .all(|refusal| !refusal.reason().is_empty()),
+    );
+    expectations.finish(
+        "C-LINK-ADMIT",
+        "Server introductions are admitted only by the configured policy",
+        "PASS, name, allowlist, self-link, configured-link and duplicate-path rules".to_owned(),
+    )
+}
+
+/// Build an `EXTERNAL` credential for a harness case.
+fn external<'a>(account: Option<&'a str>, fingerprint: &'a str) -> Credential<'a> {
+    Credential::External {
+        account,
+        fingerprint,
+    }
+}
+
+/// Certificate pinning: one fingerprint authenticates one account.
+fn certificate_pinning() -> Check {
+    let alice = sha256_hex(b"alice-certificate");
+    let bob = sha256_hex(b"bob-certificate");
+    let unknown = sha256_hex(b"unknown-certificate");
+    let sections = [
+        AccountSection {
+            name: "Alice".to_owned(),
+            // Stored in upper case on purpose: loading normalises it.
+            cert_fingerprint: Some(alice.to_uppercase()),
+            ..AccountSection::default()
+        },
+        AccountSection {
+            name: "bob".to_owned(),
+            cert_fingerprint: Some(bob.clone()),
+            ..AccountSection::default()
+        },
+    ];
+    let Ok(accounts) = ConfigAccounts::load(&sections) else {
+        return Check {
+            id: "C-PIN",
+            name: "Certificate fingerprints are pinned to exactly one account".to_owned(),
+            passed: false,
+            detail: "fingerprint-only accounts failed to load".to_owned(),
+        };
+    };
+
+    let mut expectations = Expectations::default();
+    expectations.expect(
+        "a pinned fingerprint authenticates its account",
+        accounts.verify(&external(Some("alice"), &alice)).as_deref() == Some("alice"),
+    );
+    expectations.expect(
+        "the authzid is case-insensitive",
+        accounts.verify(&external(Some("ALICE"), &alice)).as_deref() == Some("alice"),
+    );
+    expectations.expect(
+        "a presented fingerprint is normalised",
+        accounts
+            .verify(&external(Some("alice"), &alice.to_uppercase()))
+            .as_deref()
+            == Some("alice"),
+    );
+    expectations.expect(
+        "an authzid cannot borrow another account's certificate",
+        accounts.verify(&external(Some("alice"), &bob)).is_none(),
+    );
+    expectations.expect(
+        "an unknown authzid is not rescued by a valid certificate",
+        accounts
+            .verify(&external(Some("mallory"), &alice))
+            .is_none(),
+    );
+    expectations.expect(
+        "without an authzid the certificate selects its account",
+        accounts.verify(&external(None, &bob)).as_deref() == Some("bob"),
+    );
+    expectations.expect(
+        "an unknown fingerprint authenticates nobody",
+        accounts.verify(&external(None, &unknown)).is_none(),
+    );
+    expectations.expect(
+        "a truncated fingerprint does not match",
+        accounts.verify(&external(None, &alice[..32])).is_none(),
+    );
+    expectations.expect("a fingerprint with one wrong digit does not match", {
+        let mut altered = alice.clone();
+        altered.replace_range(63..64, if alice.ends_with('0') { "1" } else { "0" });
+        accounts.verify(&external(None, &altered)).is_none()
+    });
+    expectations.expect(
+        "certificate-only backends advertise EXTERNAL alone",
+        accounts.mechanisms() == ["EXTERNAL"].as_slice(),
+    );
+    expectations.finish(
+        "C-PIN",
+        "Certificate fingerprints are pinned to exactly one account",
+        "exact match, authzid binding, case folding, no partial or foreign match".to_owned(),
+    )
+}
+
+/// The start-up validation around pinned fingerprints.
+fn pinning_config() -> Check {
+    let digest = "ab".repeat(32);
+    let mut expectations = Expectations::default();
+    expectations.expect(
+        "64 hex digits are accepted",
+        config_with_accounts(vec![account("alice", Some(&digest))])
+            .validate()
+            .is_ok(),
+    );
+    expectations.expect(
+        "upper-case hex digits are accepted",
+        config_with_accounts(vec![account("alice", Some(&digest.to_uppercase()))])
+            .validate()
+            .is_ok(),
+    );
+    expectations.expect(
+        "63 digits are rejected",
+        config_with_accounts(vec![account("alice", Some(&"a".repeat(63)))])
+            .validate()
+            .is_err(),
+    );
+    expectations.expect(
+        "65 digits are rejected",
+        config_with_accounts(vec![account("alice", Some(&"a".repeat(65)))])
+            .validate()
+            .is_err(),
+    );
+    expectations.expect(
+        "non-hex characters are rejected",
+        config_with_accounts(vec![account("alice", Some(&"zz".repeat(32)))])
+            .validate()
+            .is_err(),
+    );
+    expectations.expect(
+        "an account needs a credential",
+        config_with_accounts(vec![AccountSection {
+            name: "alice".to_owned(),
+            ..AccountSection::default()
+        }])
+        .validate()
+        .is_err(),
+    );
+    expectations.expect(
+        "duplicate names are compared case-insensitively",
+        config_with_accounts(vec![
+            account("alice", Some(&digest)),
+            account("ALICE", Some(&digest)),
+        ])
+        .validate()
+        .is_err(),
+    );
+    let message = config_with_accounts(vec![account("alice", Some("zz"))])
+        .validate()
+        .err()
+        .map(|error| error.to_string())
+        .unwrap_or_default();
+    expectations.expect(
+        "the error names the offending field",
+        message.contains("cert_fingerprint"),
+    );
+    expectations.finish(
+        "C-PIN-CONFIG",
+        "Pinned fingerprints are shape-checked before the daemon starts",
+        "64 hex digits accepted; short, long, non-hex, duplicate and credential-less entries rejected"
+            .to_owned(),
+    )
+}
+
+/// One account with an optional pinned fingerprint.
+fn account(name: &str, fingerprint: Option<&str>) -> AccountSection {
+    AccountSection {
+        name: name.to_owned(),
+        cert_fingerprint: fingerprint.map(str::to_owned),
+        ..AccountSection::default()
+    }
+}
+
+/// A configuration that passes the unrelated checks, so an account failure is
+/// the only reason `validate` can reject it.
+fn config_with_accounts(accounts: Vec<AccountSection>) -> Config {
+    let mut config = Config::default();
+    config.server.name = "irc.test".to_owned();
+    config.server.description = "audit".to_owned();
+    config.server.network = "TestNet".to_owned();
+    config.accounts = accounts;
+    config.listen.push(ListenSection {
+        addresses: vec![std::net::Ipv4Addr::LOCALHOST.into()],
+        port: 0,
+        tls: false,
+        server_link: false,
+    });
+    config
 }
 
 /// Every C0 control byte, plus `DEL`, in a middle and a trailing parameter.
@@ -555,7 +942,7 @@ fn probes() -> Vec<Probe> {
         ("constant_time_eq/differs_first", &differs_first),
         ("constant_time_eq/differs_last", &differs_last),
     ];
-    let mut probes = Vec::with_capacity(6);
+    let mut probes = Vec::with_capacity(9);
     for (name, right) in cases {
         let sample = measure(20_000, 5, || u64::from(constant_time_eq(&left, right)));
         probes.push(Probe {
@@ -570,6 +957,28 @@ fn probes() -> Vec<Probe> {
     ];
     for (name, right) in comparisons {
         let sample = measure(20_000, 5, || u64::from(left == *right));
+        probes.push(Probe {
+            name: name.to_owned(),
+            median_ns: sample.median_ns,
+        });
+    }
+
+    // The link password is hashed on both sides, so the comparison always sees
+    // two 32-byte digests whatever the password length or first difference.
+    let password = "correct horse battery staple".repeat(3);
+    let mut password_first = password.clone();
+    password_first.replace_range(0..1, "X");
+    let mut password_last = password.clone();
+    password_last.replace_range(password.len() - 1.., "X");
+    let password_cases = [
+        ("secret_matches/equal", &password),
+        ("secret_matches/differs_first", &password_first),
+        ("secret_matches/differs_last", &password_last),
+    ];
+    for (name, candidate) in password_cases {
+        let sample = measure(20_000, 5, || {
+            u64::from(secret_matches(&password, candidate))
+        });
         probes.push(Probe {
             name: name.to_owned(),
             median_ns: sample.median_ns,
@@ -657,7 +1066,19 @@ mod tests {
         let points = scaling();
         assert_eq!(points.len(), 3);
         assert!(points.iter().all(|point| point.ns_per_byte > 0.0));
-        assert_eq!(probes().len(), 6);
+        assert_eq!(probes().len(), 9);
+    }
+
+    #[test]
+    fn link_and_pinning_checks_pass() {
+        for check in [
+            link_password(),
+            link_admission(),
+            certificate_pinning(),
+            pinning_config(),
+        ] {
+            assert!(check.passed, "{}: {}", check.id, check.detail);
+        }
     }
 
     #[test]

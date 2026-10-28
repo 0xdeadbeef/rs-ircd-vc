@@ -180,6 +180,7 @@ impl AccountBackend for ConfigAccounts {
                 account,
                 fingerprint,
             } => {
+                // MARK: security: high: SEC-PIN-001: the fingerprint must match exactly and the authzid binds the name.
                 let presented = fingerprint.to_ascii_lowercase();
                 match account {
                     Some(account) => {

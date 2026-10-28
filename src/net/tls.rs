@@ -107,6 +107,7 @@ fn decrypt_key(
     ))
 }
 
+// MARK: security: high: SEC-TLS-001: identity comes from the pinned fingerprint, not a CA chain.
 /// Accepts any client certificate, without a certificate authority.
 ///
 /// `EXTERNAL` does not trust a CA: each account pins the SHA-256 fingerprint of

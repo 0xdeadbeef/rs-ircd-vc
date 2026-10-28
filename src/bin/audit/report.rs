@@ -331,6 +331,39 @@ pub fn security(
          to the same message.\n"
     );
 
+    let _ = writeln!(out, "## Link admission and certificate pinning\n");
+    let _ = writeln!(
+        out,
+        "A link is admitted in two stages. `PASS` authenticates the connection, \
+         and `SERVER` is then judged by `link::admit`, which enforces, in order: \
+         authentication, a non-empty name, the peer allowlist, the no-self-link \
+         rule, the configured-link rule for outbound dials, and the no-cycle \
+         rule for a name the server can already reach. Extracting that policy \
+         from the handshake is what makes the matrix testable without a socket; \
+         the handshake's remaining job is to send `Refusal::reason()`.\n"
+    );
+    let _ = writeln!(
+        out,
+        "`PASS` is compared with `util::secret_matches`, which hashes both sides \
+         before the constant-time digest comparison. Neither the length of the \
+         configured password nor the position of the first differing byte \
+         changes the work performed, which the byte-wise comparison it replaced \
+         did not guarantee. An unset or empty `link_password_env` refuses every \
+         link instead of accepting any password.\n"
+    );
+    let _ = writeln!(
+        out,
+        "Certificate pinning is the TLS counterpart. The handshake deliberately \
+         accepts any client certificate, because identity comes from an exact \
+         SHA-256 fingerprint pinned to one account rather than from a CA chain. \
+         The harness checks that a fingerprint authenticates only its account, \
+         that an authzid cannot borrow another account's certificate, that an \
+         unknown authzid is not rescued by a valid certificate, that partial or \
+         altered digests fail, and that a certificate-only backend advertises \
+         `EXTERNAL` alone. `C-PIN-CONFIG` covers the start-up side: a value that \
+         is not 64 hex digits is refused before the daemon binds a socket.\n"
+    );
+
     let _ = writeln!(out, "### Wildcard cost\n");
     let _ = writeln!(
         out,
@@ -439,9 +472,16 @@ pub fn security(
     let _ = writeln!(out, "## Not covered\n");
     let _ = writeln!(
         out,
-        "* **TLS and link authentication.** Certificate pinning, cipher policy \
-         and the link password handshake are exercised by integration tests, not \
-         by this harness."
+        "* **TLS handshake mechanics.** Cipher suites, version negotiation and \
+         certificate-chain handling need a real handshake; `tests/tls.rs` covers \
+         them. This harness covers the pinning decision, not the bytes on the \
+         wire."
+    );
+    let _ = writeln!(
+        out,
+        "* **Topology and routing.** Whether two daemons converge after a split, \
+         and whether a multi-hop burst heals, is a socket-level property covered \
+         by `tests/linking.rs`, `tests/split.rs` and `tests/dialer.rs`."
     );
     let _ = writeln!(
         out,

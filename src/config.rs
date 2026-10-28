@@ -605,6 +605,7 @@ impl Config {
                     account.name
                 )));
             }
+            // MARK: security: medium: SEC-PIN-002: fingerprints are shape-checked here, normalised at load.
             if let Some(fingerprint) = &account.cert_fingerprint {
                 if fingerprint.len() != 64
                     || !fingerprint.bytes().all(|byte| byte.is_ascii_hexdigit())

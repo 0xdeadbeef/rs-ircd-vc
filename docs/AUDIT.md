@@ -124,6 +124,10 @@ environment fingerprinted and a stable machine-readable shape.
 | `C-TAG` | Server tags (`time`, `account`, `label`) are never relayed, `+` tags are, vendor tags need the allowlist, and a flood is clipped to the budget |
 | `C-SOAK` | Generated input never panics, is always decided, and every accepted message survives serialise/re-parse unchanged |
 | `C-WILD` | Per-byte wildcard cost stays flat from 1 KiB to 100 KiB of adversarial input |
+| `C-LINK-PASS` | A link password is matched exactly: unset and empty configuration refuse every link, and no prefix, suffix or altered byte matches |
+| `C-LINK-ADMIT` | The `SERVER` policy refuses a connection without `PASS`, an empty name, an unlisted peer, a self-link, an unconfigured dialled link and a duplicate path, in that order |
+| `C-PIN` | A pinned fingerprint authenticates only its account: exact match, case-insensitive, authzid binds the name, no partial match, no fallback for an unknown authzid |
+| `C-PIN-CONFIG` | Pinned fingerprints must be 64 hex digits at start-up; short, long, non-hex, duplicate and credential-less accounts are rejected |
 
 The soak generator is a seeded xorshift64 with no dependency, blending valid
 message shapes (70%), fragment soup (30%), control bytes, multi-byte UTF-8 and
@@ -151,6 +155,8 @@ starts the daemon, so it runs offline in CI.
   failed measurement, and never compare two different hosts.
 * The soak harness is deterministic and grammar-limited. It exercises the
   paths its generator reaches; a coverage-guided fuzzer is the right next step.
-* No dependency advisory check is performed (`cargo audit` covers that), and
-  TLS configuration, link authentication and rate limits have their own
-  integration tests rather than harness rows here.
+* No dependency advisory check is performed (`cargo audit` covers that).
+* The harness covers the link *admission policy* and the certificate pinning
+  *decision*, not the TLS handshake, routing convergence or rate limits: those
+  need real sockets and live in `tests/tls.rs`, `tests/linking.rs`,
+  `tests/split.rs` and `tests/dialer.rs`.
