@@ -158,6 +158,78 @@ pub fn account_changed(server: &Arc<Server>, client: &Arc<ClientHandle>) {
     server.propagate_link(&message);
 }
 
+/// True when `origin` is the link that carries the user's home server.
+///
+/// A peer may only change the identity of users it actually routes to, so a
+/// compromised or confused peer cannot rewrite somebody else's host.
+fn origin_owns(server: &Arc<Server>, origin: ClientId, client: &ClientHandle) -> bool {
+    client
+        .remote_server
+        .as_deref()
+        .and_then(|home| server.route(home))
+        .is_some_and(|route| route.link == origin)
+}
+
+fn inbound_setname(server: &Arc<Server>, origin: ClientId, message: &Message) {
+    let nick = prefix_nick(message);
+    let Some(client) = server.find_nick(&nick) else {
+        return;
+    };
+    if !origin_owns(server, origin, &client) {
+        return;
+    }
+    let realname = message
+        .param(0)
+        .unwrap_or_default()
+        .chars()
+        .take(200)
+        .collect::<String>();
+    client.session_mut(|session| session.realname = Some(realname.clone()));
+    let mut relay = Message::command("SETNAME");
+    relay.prefix = Some(client.mask());
+    relay.params.push(realname);
+    server.broadcast_common_cap(
+        &client,
+        super::CapSet::SETNAME,
+        &relay,
+        Some(client.id),
+        None,
+    );
+    server.propagate_link_from(message, Some(origin));
+}
+
+fn inbound_chghost(server: &Arc<Server>, origin: ClientId, message: &Message) {
+    let nick = prefix_nick(message);
+    let Some(client) = server.find_nick(&nick) else {
+        return;
+    };
+    if !origin_owns(server, origin, &client) {
+        return;
+    }
+    let user = message.param(0).unwrap_or_default();
+    let host = message.param(1).unwrap_or_default();
+    if user.is_empty() || host.is_empty() {
+        return;
+    }
+    let old_mask = client.mask();
+    client.session_mut(|session| {
+        session.user = Some(user.to_owned());
+        session.host = host.to_owned();
+    });
+    let mut relay = Message::command("CHGHOST");
+    relay.prefix = Some(old_mask);
+    relay.params.push(user.to_owned());
+    relay.params.push(host.to_owned());
+    server.broadcast_common_cap(
+        &client,
+        super::CapSet::CHGHOST,
+        &relay,
+        Some(client.id),
+        None,
+    );
+    server.propagate_link_from(message, Some(origin));
+}
+
 /// Relay a new network-wide ban to the other servers.
 ///
 /// A local K-line deliberately does not travel: one server's policy decision
@@ -296,6 +368,8 @@ pub async fn handle(server: &Arc<Server>, link: &Arc<ClientHandle>, message: &Me
         "TOPIC" => inbound_topic(server, origin, message),
         "MODE" => inbound_mode(server, origin, message),
         "ACCOUNT" => inbound_account(server, origin, message),
+        "SETNAME" => inbound_setname(server, origin, message),
+        "CHGHOST" => inbound_chghost(server, origin, message),
         "BAN" => inbound_ban(server, origin, message),
         "UNBAN" => inbound_unban(server, origin, message),
         "GLOBOPS" => inbound_globops(server, origin, message),

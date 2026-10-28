@@ -3,14 +3,16 @@
 pub mod ban;
 pub mod channel;
 pub mod client;
+pub mod history;
 pub mod link;
 
 pub use ban::{BanKind, ServerBan};
 pub use channel::Channel;
 pub use client::{
-    CapSet, ClientHandle, ClientId, Outbound, ResponseContext, SaslMechanism, SaslSession, Session,
-    Snomask, UserModes, RESPONSE,
+    CapSet, ClientHandle, ClientId, MultilineBatch, Outbound, ResponseContext, SaslMechanism,
+    SaslSession, Session, Snomask, UserModes, RESPONSE,
 };
+pub use history::{HistoryEntry, HistoryRange, HistoryStore};
 
 /// The `label` tag of a client command, when it is a token that can be echoed
 /// verbatim.
@@ -115,6 +117,8 @@ pub struct Server {
     routes: DashMap<String, ServerInfo>,
     /// Network-wide bans, shared by every kind so one scan answers any check.
     bans: RwLock<Vec<ServerBan>>,
+    /// Bounded per-channel message history.
+    history: HistoryStore,
     pub started: u64,
     pub start_instant: Instant,
     local_count: AtomicUsize,
@@ -143,6 +147,7 @@ impl Server {
             links: DashMap::new(),
             routes: DashMap::new(),
             bans: RwLock::new(Vec::new()),
+            history: HistoryStore::new(config.server.history_size),
             burst_remote_won: DashMap::new(),
             started: now_unix(),
             start_instant: Instant::now(),
@@ -676,6 +681,41 @@ impl Server {
         self.broadcast_text(recipients, message, except, account, tags);
     }
 
+    /// Broadcast to common-channel peers that negotiated `capability`.
+    ///
+    /// Identity events (`SETNAME`, `CHGHOST`, `ACCOUNT`) are only meaningful to
+    /// clients that asked for them, so the filter runs before serialisation.
+    pub fn broadcast_common_cap(
+        &self,
+        client: &ClientHandle,
+        capability: CapSet,
+        message: &Message,
+        except: Option<ClientId>,
+        account: Option<&str>,
+    ) {
+        let recipients = self
+            .common_recipients(client, except)
+            .into_iter()
+            .filter(|recipient| recipient.has_cap(capability))
+            .collect::<Vec<_>>();
+        self.broadcast_text(recipients, message, except, account, &[]);
+    }
+
+    /// Send a `standard-replies` `FAIL` to a client that negotiated the cap.
+    ///
+    /// The numeric the command already produced is still sent: `standard-replies`
+    /// is additive, not a replacement, so a client that ignores it loses nothing.
+    pub fn standard_fail(&self, client: &ClientHandle, command: &str, code: &str, text: &str) {
+        if !client.has_cap(CapSet::STANDARD_REPLIES) {
+            return;
+        }
+        let name = self.config.read().server.name.clone();
+        client.send_raw(
+            &format!(":{name} FAIL {command} {code} :{text}",),
+            self.max_line(),
+        );
+    }
+
     /// Broadcast to every channel the client shares with others, deduplicated.
     pub fn broadcast_common(
         &self,
@@ -751,6 +791,58 @@ impl Server {
         }
     }
 
+    /// Tell every watcher that `nick` came online.
+    pub fn monitor_online(&self, nick: &str, mask: &str) {
+        self.monitor_event(nick, Some(mask));
+    }
+
+    /// Tell every watcher that `nick` went offline.
+    pub fn monitor_offline(&self, nick: &str) {
+        self.monitor_event(nick, None);
+    }
+
+    /// One pass over the clients for either transition.
+    ///
+    /// Only local clients with `monitor` negotiated and this nickname in their
+    /// list receive a line, so a watcher costs one hash lookup per event.
+    fn monitor_event(&self, nick: &str, online: Option<&str>) {
+        let folded = self.casemap().fold(nick);
+        let server = self.name();
+        let max_line = self.max_line();
+        for entry in self.clients.iter() {
+            let client = entry.value();
+            if !client.is_local() || !client.has_cap(CapSet::MONITOR) {
+                continue;
+            }
+            if !client.session(|session| session.monitor.contains(&folded)) {
+                continue;
+            }
+            let numeric = if online.is_some() { 730 } else { 731 };
+            let payload = online.unwrap_or(nick);
+            client.send_raw(
+                &format!(":{server} {numeric} {} :{payload}", client.nick_or_star()),
+                max_line,
+            );
+        }
+    }
+
+    /// Announce an account change to peers that negotiated `account-notify`.
+    pub fn notify_account(&self, client: &ClientHandle, account: Option<&str>) {
+        if !client.is_registered() {
+            return;
+        }
+        let mut message = Message::command("ACCOUNT");
+        message.prefix = Some(client.mask());
+        message.params.push(account.unwrap_or("*").to_owned());
+        self.broadcast_common_cap(
+            client,
+            CapSet::ACCOUNT_NOTIFY,
+            &message,
+            Some(client.id),
+            account,
+        );
+    }
+
     /// Attach the logging handle so operator `REHASH` can change verbosity.
     pub fn attach_logging(&self, logging: Arc<LoggingHandle>) {
         *self.logging.write() = Some(logging);
@@ -778,6 +870,9 @@ impl Server {
         if let Some(nick) = client.nick() {
             self.nicks.write().remove(&casemap.fold(&nick));
             self.remember_whowas(client, &nick);
+            if client.is_local() {
+                self.monitor_offline(&nick);
+            }
         }
         self.clients.remove(&client.id);
         self.links.remove(&client.id);
@@ -958,6 +1053,30 @@ impl Server {
         let before = bans.len();
         bans.retain(|entry| entry.active(now));
         before - bans.len()
+    }
+
+    /// Append one channel message to the history ring.
+    pub fn remember_history(&self, channel: &str, prefix: &str, text: &str) {
+        let folded = self.casemap().fold(channel);
+        self.history.remember(
+            &folded,
+            HistoryEntry {
+                at: now_unix(),
+                prefix: prefix.to_owned(),
+                text: text.to_owned(),
+            },
+        );
+    }
+
+    /// Entries matching `range`, oldest first.
+    pub fn history_in_range(
+        &self,
+        channel: &str,
+        range: HistoryRange,
+        limit: usize,
+    ) -> Vec<HistoryEntry> {
+        let folded = self.casemap().fold(channel);
+        self.history.query(&folded, range, limit)
     }
 
     /// True when any ban is stored, expired or not.

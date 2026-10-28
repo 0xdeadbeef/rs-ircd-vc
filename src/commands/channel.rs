@@ -576,6 +576,28 @@ fn cmd_invite(cx: Cmd) -> CmdFuture {
         invite.params.push(nick);
         invite.params.push(channel_name);
         target.send(&invite, cx.max_line());
+        // `invite-notify`: channel operators watch invitations in real time, so
+        // a hidden guest cannot be added without their knowledge.
+        {
+            let guard = channel.read();
+            let operators = guard
+                .members
+                .iter()
+                .filter(|(_, mode)| mode.op)
+                .map(|(id, _)| *id)
+                .collect::<Vec<_>>();
+            drop(guard);
+            for id in operators {
+                if id == cx.client.id || id == target.id {
+                    continue;
+                }
+                if let Some(operator) = cx.server.find_client(id) {
+                    if operator.has_cap(CapSet::INVITE_NOTIFY) {
+                        operator.send(&invite, cx.max_line());
+                    }
+                }
+            }
+        }
         // Every server records the invitation against its own handle for the
         // invitee; without the relay a remote user could never pass `+i`.
         if cx.client.is_local() {

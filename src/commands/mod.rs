@@ -91,8 +91,11 @@ command_table! {
     "ADMIN" => admin::ADMIN,
     "AUTHENTICATE" => registration::AUTHENTICATE,
     "AWAY" => messaging::AWAY,
+    "BATCH" => messaging::BATCH,
     "BENCH" => admin::BENCH,
     "CAP" => registration::CAP,
+    "CHGHOST" => registration::CHGHOST,
+    "CHATHISTORY" => messaging::CHATHISTORY,
     "COMPRESS" => admin::COMPRESS,
     "GLOBOPS" => admin::GLOBOPS,
     "GLINE" => admin::GLINE,
@@ -108,6 +111,7 @@ command_table! {
     "LOGOUT" => registration::LOGOUT,
     "LUSERS" => admin::LUSERS,
     "MODE" => channel::MODE,
+    "MONITOR" => messaging::MONITOR,
     "MOTD" => admin::MOTD,
     "NAMES" => channel::NAMES,
     "NICK" => registration::NICK,
@@ -121,9 +125,11 @@ command_table! {
     "QUIT" => registration::QUIT,
     "REHASH" => admin::REHASH,
     "SAMODE" => admin::SAMODE,
+    "SETNAME" => registration::SETNAME,
     "SHUN" => admin::SHUN,
     "SNOMASK" => admin::SNOMASK,
     "STATS" => admin::STATS,
+    "TAGMSG" => messaging::TAGMSG,
     "TIME" => admin::TIME,
     "TOPIC" => channel::TOPIC,
     "USER" => registration::USER,
@@ -309,7 +315,7 @@ mod tests {
             assert_eq!(found.min_params, spec.min_params);
             assert_eq!(found.access, spec.access);
         }
-        assert_eq!(CLIENT_COMMANDS.len(), 47);
+        assert_eq!(CLIENT_COMMANDS.len(), 53);
     }
 
     #[test]

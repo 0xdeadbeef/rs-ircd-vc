@@ -25,6 +25,11 @@ invite_warning_secs = 60
 # Vendor tags a client may send without the `+` prefix. Keys match exactly and
 # are relayed like `+` tags; server tags (time, account, label) are refused.
 client_tag_allowlist = []
+# `sts` policy lifetime; only advertised when TLS is configured. 0 disables.
+sts_duration_secs = 2592000
+# Messages kept per channel for `draft/chathistory`. 0 disables the store.
+# This is in-memory only: a restart starts with no history.
+history_size = 256
 # client_tag_allowlist = ["example.com/foo", "draft/reply"]
 
 [limits]

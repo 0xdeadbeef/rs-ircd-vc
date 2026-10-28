@@ -4,8 +4,9 @@ Full comparison of this daemon against the five open-source IRC servers this
 repository already indexes in [FEATURES.md](FEATURES.md), followed by a
 prioritised list of features we do not have, sized for implementation.
 
-* **Subject:** rs-ircd, commit `6c8d53d` (39 client commands, 11 IRCv3
-  capabilities, channel modes `imnpstRklovbe`).
+* **Subject:** rs-ircd (53 client commands, 21 IRCv3 capabilities, channel
+  modes `imnpstRklovbe`). The capability table below reflects the tree after the
+  IRCv3 work; see [IRCV3.md](IRCV3.md) for what each capability does.
 * **Peers:** InspIRCd 4.x, UnrealIRCd 6.x, Solanum, Ergo 2.x, ngIRCd. All five
   are open source and their source, documentation and protocol notes are
   public.
@@ -65,19 +66,19 @@ says so rather than pretending the comparison is version-independent.
 | `WHOX` | No | Yes | Yes | Yes | Yes | No | Used by bots and clients for efficient WHO |
 | `SILENCE` | No | Yes | Yes | Yes | ? | No | Server-side ignore lists |
 | `KNOCK` | No | Module | Yes | ? | ? | No | `+K` disables it where supported |
-| `TAGMSG` | No | Yes | Yes | Yes | Yes | No | We relay tags on PRIVMSG only |
+| `TAGMSG` | Yes | Yes | Yes | Yes | Yes | No | Bodyless messages under `message-tags` |
 | `SETNAME` | No | Module | Yes | Yes | Yes | No | Real name changes after registration |
 | `CHGHOST` | No | Module | Yes | Yes | Yes | No | Services-driven host changes |
-| `MONITOR` | No | Yes | Yes | Yes | Yes | No | Replaces ISON polling |
+| `MONITOR` | Yes | Yes | Yes | Yes | Yes | No | 100 entries per session |
 | `USERS` | No | No | No | No | No | No | Obsolete; listed for completeness |
 | `STATS` breadth | Partial (`l`, `u`) | Yes | Yes | Yes | Yes | Yes | We deliberately expose two letters |
 | `DIE` / `RESTART` | No | Yes | Yes | Yes | Yes | Yes | We refuse them by design |
 | `SQUIT` / `CONNECT` from clients | No (links only) | Yes | Yes | Yes | n/a | Yes | Routing is automatic here |
 
-Verified in this tree: a source search for `TAGMSG`, `SILENCE`, `KNOCK`,
-`WHOX`, `MONITOR`, `STARTTLS`, `WEBIRC`, `SETNAME`, `CHGHOST`, `BATCH` and
-`CHATHISTORY` returns no hits, so each of those rows is `No` rather than
-"untested".
+Verified in this tree: the capability rows marked `Yes` are asserted by
+`tests/ircv3.rs`, `tests/network.rs` or the audit harness. `SILENCE`, `KNOCK`,
+`WHOX`, `STARTTLS` and `WEBIRC` still have no implementation and no hits in
+`src/`, so those rows are `No` rather than "untested".
 
 ## 4. IRCv3 capabilities
 
@@ -91,19 +92,19 @@ Verified in this tree: a source search for `TAGMSG`, `SILENCE`, `KNOCK`,
 | `away-notify` | Yes | Yes | Yes | Yes | Yes | No |
 | `message-tags` | Yes, 4 KiB client-tag budget | Yes | Yes | Yes | Yes | No |
 | `server-time` | Yes | Yes | Yes | Yes | Yes | No |
-| `batch` | No | Yes | Yes | Yes | Yes | No |
+| `batch` | Yes | Yes | Yes | Yes | Yes | No |
 | `labeled-response` | Yes | Yes | Yes | Yes | Yes | No |
-| `chathistory` | No | Module (join-time history, not `CHATHISTORY`) | Yes | No | Yes | No |
+| `chathistory` | Yes, in-memory | Module (join-time history, not `CHATHISTORY`) | Yes | No | Yes | No | Not persisted, not shared across links |
 | `echo-message` | Yes | Yes | Yes | Yes | Yes | No |
 | `extended-join` | Yes | Yes | Yes | Yes | Yes | No |
-| `invite-notify` | No | Yes | Yes | Yes | Yes | No |
+| `invite-notify` | Yes | Yes | Yes | Yes | Yes | No |
 | `multi-prefix` | Yes | Yes | Yes | Yes | Yes | Yes |
 | `userhost-in-names` | Yes | Yes | Yes | Yes | Yes | Yes |
-| `setname` | No | Module | Yes | Yes | Yes | No |
-| `chghost` | No | Module | Yes | Yes | Yes | No |
-| `sts` | No | No | Yes | No | Yes | No |
-| `standard-replies` | No | Yes | Yes | Yes | Yes | No |
-| `multiline` | No | No | Yes | No | Yes | No |
+| `setname` | Yes | Module | Yes | Yes | Yes | No |
+| `chghost` | Yes | Module | Yes | Yes | Yes | No |
+| `sts` | Yes, with TLS | No | Yes | No | Yes | No |
+| `standard-replies` | Yes | Yes | Yes | Yes | Yes | No |
+| `multiline` | Yes | No | Yes | No | Yes | No |
 | `draft/relaymsg` | No | No | No | No | Yes | No |
 
 ## 5. Channel modes, by function

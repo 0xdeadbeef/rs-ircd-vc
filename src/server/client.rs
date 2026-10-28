@@ -57,7 +57,7 @@ pub enum Outbound {
 
 /// IRCv3 capabilities this server implements.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct CapSet(u16);
+pub struct CapSet(u32);
 
 impl std::ops::BitOr for CapSet {
     type Output = CapSet;
@@ -96,9 +96,29 @@ impl CapSet {
     pub const MESSAGE_TAGS: CapSet = CapSet(1 << 9);
     /// `labeled-response`: echo the command's `label` tag on its responses.
     pub const LABELED_RESPONSE: CapSet = CapSet(1 << 10);
+    /// `account-notify`: push `ACCOUNT` when a peer logs in or out.
+    pub const ACCOUNT_NOTIFY: CapSet = CapSet(1 << 11);
+    /// `invite-notify`: show invitations to channel operators.
+    pub const INVITE_NOTIFY: CapSet = CapSet(1 << 12);
+    /// `setname`: real-name changes after registration.
+    pub const SETNAME: CapSet = CapSet(1 << 13);
+    /// `chghost`: username and host changes.
+    pub const CHGHOST: CapSet = CapSet(1 << 14);
+    /// `sts`: strict transport security policy.
+    pub const STS: CapSet = CapSet(1 << 15);
+    /// `standard-replies`: machine-readable `FAIL`/`WARN`/`NOTE` replies.
+    pub const STANDARD_REPLIES: CapSet = CapSet(1 << 16);
+    /// `monitor`: server-side presence list.
+    pub const MONITOR: CapSet = CapSet(1 << 17);
+    /// `batch`: server-originated message batches.
+    pub const BATCH: CapSet = CapSet(1 << 18);
+    /// `draft/multiline`: one message split across several lines.
+    pub const MULTILINE: CapSet = CapSet(1 << 19);
+    /// `draft/chathistory`: replay of recent channel messages.
+    pub const CHATHISTORY: CapSet = CapSet(1 << 20);
 
     /// Every capability together with its wire name.
-    pub const TABLE: [(&'static str, CapSet); 11] = [
+    pub const TABLE: [(&'static str, CapSet); 21] = [
         ("multi-prefix", CapSet::MULTI_PREFIX),
         ("away-notify", CapSet::AWAY_NOTIFY),
         ("server-time", CapSet::SERVER_TIME),
@@ -110,6 +130,16 @@ impl CapSet {
         ("account-tag", CapSet::ACCOUNT_TAG),
         ("message-tags", CapSet::MESSAGE_TAGS),
         ("labeled-response", CapSet::LABELED_RESPONSE),
+        ("account-notify", CapSet::ACCOUNT_NOTIFY),
+        ("invite-notify", CapSet::INVITE_NOTIFY),
+        ("setname", CapSet::SETNAME),
+        ("chghost", CapSet::CHGHOST),
+        ("sts", CapSet::STS),
+        ("standard-replies", CapSet::STANDARD_REPLIES),
+        ("monitor", CapSet::MONITOR),
+        ("batch", CapSet::BATCH),
+        ("draft/multiline", CapSet::MULTILINE),
+        ("draft/chathistory", CapSet::CHATHISTORY),
     ];
 
     /// Look a capability up by its advertised name.
@@ -330,6 +360,22 @@ impl SaslMechanism {
     }
 }
 
+/// Lines collected from one incoming `draft/multiline` batch.
+///
+/// The reference is the client-chosen batch id; the target is fixed when the
+/// batch opens, so a line inside the batch cannot retarget the message.
+#[derive(Debug, Clone, Default)]
+pub struct MultilineBatch {
+    /// Client-chosen batch reference.
+    pub reference: String,
+    /// Destination fixed at open time.
+    pub target: String,
+    /// Collected lines, joined with `\n` when the batch closes.
+    pub lines: Vec<String>,
+    /// Total bytes collected so far, for the ceiling check.
+    pub bytes: usize,
+}
+
 /// A SASL exchange that has selected a mechanism but not finished.
 #[derive(Debug, Clone)]
 pub struct SaslSession {
@@ -373,6 +419,10 @@ pub struct Session {
     pub sasl: Option<SaslSession>,
     /// Folded names of joined channels.
     pub channels: HashSet<String>,
+    /// Nicknames watched with `MONITOR`, folded through the casemapping.
+    pub monitor: HashSet<String>,
+    /// `draft/multiline` batch currently being collected from this client.
+    pub multiline: Option<MultilineBatch>,
     /// Sign-on time (Unix seconds).
     pub signon: u64,
     /// Creation timestamp used for nickname collision resolution.

@@ -83,6 +83,12 @@ pub struct ServerSection {
     /// `example.com/foo`; server tags (`time`, `account`, `label`) are always
     /// refused so a client can never forge them.
     pub client_tag_allowlist: Vec<String>,
+    /// `sts` policy lifetime in seconds. Zero disables advertisement. The
+    /// capability is only offered when TLS material is configured, because
+    /// advertising a policy the server cannot honour is worse than silence.
+    pub sts_duration_secs: u64,
+    /// Messages kept per channel for `CHATHISTORY`. Zero disables the store.
+    pub history_size: usize,
 }
 
 impl Default for ServerSection {
@@ -102,6 +108,8 @@ impl Default for ServerSection {
             invite_expiry_secs: 300,
             invite_warning_secs: 60,
             client_tag_allowlist: Vec::new(),
+            sts_duration_secs: 2_592_000,
+            history_size: 256,
         }
     }
 }

@@ -64,6 +64,22 @@ pub const LOGOUT: CommandSpec = CommandSpec {
     handler: cmd_logout,
 };
 
+/// `SETNAME` changes the real name after registration.
+pub const SETNAME: CommandSpec = CommandSpec {
+    name: "SETNAME",
+    min_params: 1,
+    access: Access::Registered,
+    handler: cmd_setname,
+};
+
+/// `CHGHOST` changes the username and host, normally driven by services.
+pub const CHGHOST: CommandSpec = CommandSpec {
+    name: "CHGHOST",
+    min_params: 2,
+    access: Access::Oper(crate::config::OperPrivilege::ADMIN),
+    handler: cmd_chghost,
+};
+
 /// `QUIT` ends the session.
 pub const QUIT: CommandSpec = CommandSpec {
     name: "QUIT",
@@ -174,6 +190,10 @@ fn cmd_nick(cx: Cmd) -> CmdFuture {
                 }
             }
             cx.client.send(&echo, cx.max_line());
+            if let Some(old) = previous.as_deref() {
+                cx.server.monitor_offline(old);
+            }
+            cx.server.monitor_online(&requested, &cx.mask());
             link::propagate_nick(&cx.server, &cx.client, &requested, &previous_mask);
         } else {
             try_register(&cx.server, &cx.client);
@@ -238,6 +258,15 @@ fn cmd_cap(cx: Cmd) -> CmdFuture {
                         cap_reply(&cx, "NAK", requested, false);
                         return Ok(());
                     }
+                    // `sts` is a value the client applies; without TLS the policy
+                    // would ask for something this server cannot offer.
+                    if capability == CapSet::STS
+                        && (cx.server.cfg().server.sts_duration_secs == 0
+                            || cx.server.cfg().tls.cert_path.is_none())
+                    {
+                        cap_reply(&cx, "NAK", requested, false);
+                        return Ok(());
+                    }
                     if removing {
                         disable.insert(capability);
                     } else {
@@ -279,6 +308,7 @@ fn cmd_logout(cx: Cmd) -> CmdFuture {
         });
         if had_account {
             link::account_changed(&cx.server, &cx.client);
+            cx.server.notify_account(&cx.client, None);
         }
         cx.reply(
             Numeric::RPL_LOGGEDOUT,
@@ -353,6 +383,7 @@ fn cmd_authenticate(cx: Cmd) -> CmdFuture {
         // A user who was already visible keeps their account current on the
         // other servers; before registration the introduction carries it.
         crate::server::link::account_changed(&cx.server, &cx.client);
+        cx.server.notify_account(&cx.client, Some(&account));
         cx.reply(
             Numeric::RPL_LOGGEDIN,
             format!("{mask} {account} :You are now logged in as {account}"),
@@ -416,6 +447,75 @@ fn verify_payload(
     }
 }
 
+fn cmd_setname(cx: Cmd) -> CmdFuture {
+    Box::pin(async move {
+        let realname = cx.param(0).unwrap_or_default().trim();
+        if realname.is_empty() {
+            return Err(cx.fail(
+                Numeric::ERR_NEEDMOREPARAMS,
+                "SETNAME :Not enough parameters",
+            ));
+        }
+        let realname = realname.chars().take(200).collect::<String>();
+        cx.client
+            .session_mut(|session| session.realname = Some(realname.clone()));
+        let mut message = Message::command("SETNAME");
+        message.prefix = Some(cx.mask());
+        message.params.push(realname);
+        cx.server.broadcast_common_cap(
+            &cx.client,
+            CapSet::SETNAME,
+            &message,
+            Some(cx.client.id),
+            None,
+        );
+        if cx.client.has_cap(CapSet::SETNAME) {
+            cx.client.send(&message, cx.max_line());
+        }
+        if cx.client.is_local() {
+            cx.server.propagate_link(&message);
+        }
+        Ok(())
+    })
+}
+
+fn cmd_chghost(cx: Cmd) -> CmdFuture {
+    Box::pin(async move {
+        let user = cx.param(0).unwrap_or_default().to_owned();
+        let host = cx.param(1).unwrap_or_default().to_owned();
+        if !crate::commands::valid_username(&user)
+            || host.is_empty()
+            || host.len() > 63
+            || !host.bytes().all(|byte| byte.is_ascii_graphic())
+        {
+            return Err(cx.fail(Numeric::ERR_NEEDMOREPARAMS, "CHGHOST :Invalid user or host"));
+        }
+        let old_mask = cx.mask();
+        cx.client.session_mut(|session| {
+            session.user = Some(user.clone());
+            session.host = host.clone();
+        });
+        let mut message = Message::command("CHGHOST");
+        message.prefix = Some(old_mask);
+        message.params.push(user);
+        message.params.push(host);
+        cx.server.broadcast_common_cap(
+            &cx.client,
+            CapSet::CHGHOST,
+            &message,
+            Some(cx.client.id),
+            None,
+        );
+        if cx.client.has_cap(CapSet::CHGHOST) {
+            cx.client.send(&message, cx.max_line());
+        }
+        if cx.client.is_local() {
+            cx.server.propagate_link(&message);
+        }
+        Ok(())
+    })
+}
+
 fn cmd_quit(cx: Cmd) -> CmdFuture {
     Box::pin(async move {
         let reason = cx.param(0).unwrap_or("Client Quit");
@@ -466,6 +566,11 @@ fn cap_tokens(server: &Server) -> Vec<String> {
         .filter_map(|(name, capability)| {
             if *capability == CapSet::SASL {
                 return (!mechanisms.is_empty()).then(|| format!("sasl={}", mechanisms.join(",")));
+            }
+            if *capability == CapSet::STS {
+                let config = server.cfg();
+                return (config.server.sts_duration_secs > 0 && config.tls.cert_path.is_some())
+                    .then(|| format!("sts=duration={}", config.server.sts_duration_secs));
             }
             Some((*name).to_owned())
         })
@@ -562,6 +667,7 @@ pub fn try_register(server: &Arc<Server>, client: &Arc<ClientHandle>) -> bool {
         session.signon = signon;
         session.ts = signon;
     });
+    server.monitor_online(&client.nick_or_star(), &client.mask());
 
     let name = config.server.name.clone();
     let network = config.server.network.clone();
