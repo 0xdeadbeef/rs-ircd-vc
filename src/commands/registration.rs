@@ -8,11 +8,12 @@ use crate::auth::Credential;
 use crate::commands::{valid_nickname, valid_username, Access, Cmd, CmdFuture, CommandSpec};
 use crate::protocol::{Message, Numeric};
 use crate::server::{link, CapSet, ClientHandle, SaslMechanism, SaslSession, Server};
-use crate::util::now_unix;
+use crate::util::{now_unix, secret_matches};
 
 /// base64 characters a client may send in one `AUTHENTICATE` line.
 const SASL_CHUNK: usize = 400;
 /// Ceiling on the reassembled base64 payload.
+// MARK: security: high: SEC-SASL-001: the reassembled payload is capped before decoding.
 const SASL_MAX_PAYLOAD: usize = 8192;
 
 /// `PASS` sets the connection password.
@@ -94,8 +95,9 @@ fn cmd_pass(cx: Cmd) -> CmdFuture {
         }
         let expected = cx.server.cfg().connection_password();
         let supplied = cx.param(0).unwrap_or_default();
+        // MARK: security: high: SEC-PASS-001: the connection password is compared by digest.
         let accepted = match &expected {
-            Some(password) => password == supplied,
+            Some(password) => secret_matches(password, supplied),
             None => true,
         };
         cx.client.session_mut(|session| session.pass_ok = accepted);
@@ -500,6 +502,7 @@ pub fn try_register(server: &Arc<Server>, client: &Arc<ClientHandle>) -> bool {
         return false;
     }
     let config = server.cfg();
+    // MARK: policy: high: POL-REG-001: SASL and connection passwords are both enforced before 001.
     if config.sasl.require && client.session(|session| session.account.is_none()) {
         server.numeric(
             client,

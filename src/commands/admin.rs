@@ -143,6 +143,7 @@ fn cmd_oper(cx: Cmd) -> CmdFuture {
             .as_deref()
             .and_then(|variable| std::env::var(variable).ok())
             .unwrap_or_default();
+        // MARK: security: critical: SEC-OPER-001: operator passwords are verified against a SHA-256 hash.
         if stored.is_empty() || !verify_password(&password, &stored) {
             tracing::warn!(nick = %cx.nick(), %host, "failed OPER attempt");
             return Err(cx.fail(Numeric::ERR_PASSWDMISMATCH, ":Password incorrect"));
@@ -183,6 +184,7 @@ fn cmd_kill(cx: Cmd) -> CmdFuture {
     })
 }
 
+// MARK: policy: medium: POL-REHASH-001: a rejected configuration reports and keeps the running one.
 fn cmd_rehash(cx: Cmd) -> CmdFuture {
     Box::pin(async move {
         match cx.server.rehash_attached() {

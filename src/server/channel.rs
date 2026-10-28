@@ -158,6 +158,88 @@ pub struct InviteDue {
     pub expired: bool,
 }
 
+/// A join attempt as the gate sees it.
+#[derive(Debug, Clone, Copy)]
+pub struct JoinRequest<'a> {
+    /// Client asking to join.
+    pub id: ClientId,
+    /// Nickname, used for ban masks.
+    pub nick: &'a str,
+    /// Username, used for ban masks.
+    pub user: &'a str,
+    /// Hostname, used for ban masks.
+    pub host: &'a str,
+    /// SASL account, when the client is authenticated.
+    pub account: Option<&'a str>,
+    /// Key offered with `JOIN`.
+    pub key: &'a str,
+}
+
+/// Why a join was refused.
+///
+/// The variant decides both the numeric and the reason text, so the command
+/// handler cannot report a check it did not perform.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JoinRefusal {
+    /// `+l` is reached.
+    Full,
+    /// `+k` is set and the offered key does not match.
+    BadKey,
+    /// `+i` is set and the client holds no unexpired invitation.
+    InviteOnly,
+    /// `+R` is set and the client is not authenticated.
+    AccountOnly,
+    /// A `+b` entry covers the client and no `+e` entry excuses it.
+    Banned,
+}
+
+impl JoinRefusal {
+    /// Wire text that follows the channel name in the numeric.
+    pub fn reason(self) -> &'static str {
+        match self {
+            JoinRefusal::Full => "Cannot join channel (+l)",
+            JoinRefusal::BadKey => "Cannot join channel (+k)",
+            JoinRefusal::InviteOnly => "Cannot join channel (+i)",
+            JoinRefusal::AccountOnly => "Cannot join channel (+R) - you need to be authenticated",
+            JoinRefusal::Banned => "Cannot join channel (+b)",
+        }
+    }
+}
+
+impl Channel {
+    /// Decide whether `request` may join, judged at `now`.
+    ///
+    /// The order is the order a client sees when several modes would refuse:
+    /// a full channel reports `+l` before a wrong key reports `+k`, and so on
+    /// down to `+b`. `now` is a parameter rather than read inside, so an
+    /// invitation that lapses during the join cannot be judged against two
+    /// different instants.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first [`JoinRefusal`] that applies.
+    pub fn join_check(&self, request: &JoinRequest<'_>, now: Instant) -> Result<(), JoinRefusal> {
+        if self.limit.is_some_and(|limit| self.len() >= limit) {
+            return Err(JoinRefusal::Full);
+        }
+        if let Some(expected) = &self.key {
+            if request.key != expected {
+                return Err(JoinRefusal::BadKey);
+            }
+        }
+        if self.invite_only && !self.invited_at(request.id, now) {
+            return Err(JoinRefusal::InviteOnly);
+        }
+        if self.account_only && request.account.is_none() {
+            return Err(JoinRefusal::AccountOnly);
+        }
+        if self.is_banned(request.nick, request.user, request.host, request.account) {
+            return Err(JoinRefusal::Banned);
+        }
+        Ok(())
+    }
+}
+
 impl Channel {
     /// Create an empty channel with the modes RFC 2811 recommends by default.
     pub fn new(name: impl Into<String>) -> Self {

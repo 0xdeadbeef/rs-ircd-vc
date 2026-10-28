@@ -135,6 +135,7 @@ fn talk_channel(cx: &Cmd, name: &str, text: &str, command: &str) -> Result<(), C
     let guard = channel.write();
     let channel_name = guard.name.clone();
     let account = cx.client.session(|session| session.account.clone());
+    // MARK: security: high: SEC-SPEAK-001: speaking is gated by +R, +m, +n and bans.
     if guard.account_only && account.is_none() {
         return Err(cx.fail(
             Numeric::ERR_CANNOTSENDTOCHAN,

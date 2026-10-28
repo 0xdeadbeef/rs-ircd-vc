@@ -364,6 +364,31 @@ pub fn security(
          is not 64 hex digits is refused before the daemon binds a socket.\n"
     );
 
+    let _ = writeln!(out, "## Channel modes and invitations\n");
+    let _ = writeln!(
+        out,
+        "The join gate moved out of the `JOIN` handler into \
+         `Channel::join_check`, which returns a `JoinRefusal` carrying both the \
+         numeric and the wire reason. The harness drives the gate directly: `+l` \
+         at, below and at a limit of zero (which refuses everyone), `+k` with a \
+         wrong, absent or empty key, `+i` with a fresh, exactly-expiring and \
+         already-lapsed invitation, `+R` with and without an account, and `+b` \
+         with an account exception. It also fixes the order a client sees when \
+         several modes apply: `+l` before `+k` before `+i` before `+R` before \
+         `+b`.\n"
+    );
+    let _ = writeln!(
+        out,
+        "An invitation is a grant to a session with a deadline. The harness \
+         checks the boundary at `expires` exactly, that a warning is delivered \
+         once when the remaining time reaches the configured window, that a \
+         warning does not revoke the grant, that expiry removes and reports it, \
+         that re-inviting extends it, that joining consumes it and that \
+         withdrawing clears it. A zero lifetime is refused at start-up, while a \
+         warning window longer than the lifetime is allowed and simply warns on \
+         the first sweep.\n"
+    );
+
     let _ = writeln!(out, "### Wildcard cost\n");
     let _ = writeln!(
         out,

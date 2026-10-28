@@ -1,9 +1,9 @@
 {
   "environment": {
     "arch": "x86_64",
-    "commit": "cb5cea2",
+    "commit": "9bb1a43",
     "cores": 8,
-    "generated": "2026-10-28T19:33:42.266896752Z",
+    "generated": "2026-10-28T19:42:00.832569619Z",
     "os": "linux",
     "profile": "release",
     "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
@@ -106,7 +106,7 @@
           "code_lines": 443,
           "debug_prints": 0,
           "expects": 0,
-          "lines": 496,
+          "lines": 498,
           "panics": 0,
           "path": "src/commands/admin.rs",
           "stubs": 0,
@@ -115,10 +115,10 @@
         },
         {
           "allows": 0,
-          "code_lines": 913,
+          "code_lines": 897,
           "debug_prints": 0,
           "expects": 0,
-          "lines": 974,
+          "lines": 960,
           "panics": 0,
           "path": "src/commands/channel.rs",
           "stubs": 0,
@@ -130,7 +130,7 @@
           "code_lines": 492,
           "debug_prints": 0,
           "expects": 0,
-          "lines": 537,
+          "lines": 538,
           "panics": 0,
           "path": "src/commands/messaging.rs",
           "stubs": 0,
@@ -154,7 +154,7 @@
           "code_lines": 550,
           "debug_prints": 0,
           "expects": 0,
-          "lines": 630,
+          "lines": 633,
           "panics": 0,
           "path": "src/commands/registration.rs",
           "stubs": 0,
@@ -367,10 +367,10 @@
         },
         {
           "allows": 0,
-          "code_lines": 427,
+          "code_lines": 477,
           "debug_prints": 0,
           "expects": 0,
-          "lines": 564,
+          "lines": 646,
           "panics": 0,
           "path": "src/server/channel.rs",
           "stubs": 0,
@@ -382,7 +382,7 @@
           "code_lines": 512,
           "debug_prints": 0,
           "expects": 0,
-          "lines": 712,
+          "lines": 713,
           "panics": 0,
           "path": "src/server/client.rs",
           "stubs": 0,
@@ -406,7 +406,7 @@
           "code_lines": 929,
           "debug_prints": 0,
           "expects": 0,
-          "lines": 1173,
+          "lines": 1175,
           "panics": 0,
           "path": "src/server/mod.rs",
           "stubs": 0,
@@ -429,11 +429,11 @@
       "name": "src",
       "totals": {
         "allows": 0,
-        "code_lines": 10355,
+        "code_lines": 10389,
         "debug_prints": 3,
         "expects": 59,
         "files": 29,
-        "lines": 12742,
+        "lines": 12819,
         "panics": 1,
         "stubs": 0,
         "unsafe_blocks": 8,
@@ -569,10 +569,10 @@
         },
         {
           "allows": 0,
-          "code_lines": 659,
+          "code_lines": 683,
           "debug_prints": 0,
           "expects": 1,
-          "lines": 733,
+          "lines": 758,
           "panics": 0,
           "path": "src/bin/audit/report.rs",
           "stubs": 0,
@@ -581,10 +581,10 @@
         },
         {
           "allows": 0,
-          "code_lines": 941,
+          "code_lines": 1389,
           "debug_prints": 0,
-          "expects": 42,
-          "lines": 1096,
+          "expects": 93,
+          "lines": 1580,
           "panics": 0,
           "path": "src/bin/audit/security.rs",
           "stubs": 0,
@@ -607,11 +607,11 @@
       "name": "src/bin",
       "totals": {
         "allows": 2,
-        "code_lines": 2654,
+        "code_lines": 3126,
         "debug_prints": 18,
-        "expects": 46,
+        "expects": 97,
         "files": 6,
-        "lines": 3165,
+        "lines": 3674,
         "panics": 1,
         "stubs": 2,
         "unsafe_blocks": 5,
@@ -646,9 +646,17 @@
     },
     {
       "category": "security",
+      "file": "src/commands/admin.rs",
+      "id": "SEC-OPER-001",
+      "line": 146,
+      "severity": "critical",
+      "text": "operator passwords are verified against a SHA-256 hash."
+    },
+    {
+      "category": "security",
       "file": "src/server/channel.rs",
       "id": "SEC-BAN-001",
-      "line": 295,
+      "line": 377,
       "severity": "high",
       "text": "exceptions override bans, including `$a:` entries."
     },
@@ -670,11 +678,27 @@
     },
     {
       "category": "security",
+      "file": "src/commands/channel.rs",
+      "id": "SEC-JOIN-001",
+      "line": 144,
+      "severity": "high",
+      "text": "every channel mode is enforced in one ordered gate."
+    },
+    {
+      "category": "security",
       "file": "src/server/link.rs",
       "id": "SEC-LINK-002",
       "line": 323,
       "severity": "high",
       "text": "digests are compared, so neither content nor length leaks."
+    },
+    {
+      "category": "security",
+      "file": "src/commands/registration.rs",
+      "id": "SEC-PASS-001",
+      "line": 98,
+      "severity": "high",
+      "text": "the connection password is compared by digest."
     },
     {
       "category": "security",
@@ -686,11 +710,35 @@
     },
     {
       "category": "security",
+      "file": "src/server/client.rs",
+      "id": "SEC-QUEUE-001",
+      "line": 491,
+      "severity": "high",
+      "text": "a full send queue disconnects instead of growing the heap."
+    },
+    {
+      "category": "security",
+      "file": "src/commands/registration.rs",
+      "id": "SEC-SASL-001",
+      "line": 16,
+      "severity": "high",
+      "text": "the reassembled payload is capped before decoding."
+    },
+    {
+      "category": "security",
       "file": "src/util.rs",
       "id": "SEC-SECRET-001",
       "line": 137,
       "severity": "high",
       "text": "secrets are compared by digest, never byte-wise."
+    },
+    {
+      "category": "security",
+      "file": "src/commands/messaging.rs",
+      "id": "SEC-SPEAK-001",
+      "line": 138,
+      "severity": "high",
+      "text": "speaking is gated by +R, +m, +n and bans."
     },
     {
       "category": "security",
@@ -766,6 +814,14 @@
     },
     {
       "category": "speed",
+      "file": "src/server/mod.rs",
+      "id": "SPD-FANOUT-001",
+      "line": 542,
+      "severity": "high",
+      "text": "serialisations are shared across the audience, not built per recipient."
+    },
+    {
+      "category": "speed",
       "file": "src/server/channel.rs",
       "id": "SPD-BAN-001",
       "line": 73,
@@ -798,11 +854,43 @@
     },
     {
       "category": "policy",
+      "file": "src/server/mod.rs",
+      "id": "POL-INVITE-001",
+      "line": 459,
+      "severity": "high",
+      "text": "each server notifies only the participants it houses locally."
+    },
+    {
+      "category": "policy",
+      "file": "src/commands/channel.rs",
+      "id": "POL-INVITE-002",
+      "line": 540,
+      "severity": "high",
+      "text": "every invitation carries the configured lifetime."
+    },
+    {
+      "category": "policy",
+      "file": "src/commands/registration.rs",
+      "id": "POL-REG-001",
+      "line": 505,
+      "severity": "high",
+      "text": "SASL and connection passwords are both enforced before 001."
+    },
+    {
+      "category": "policy",
       "file": "src/script/rules.rs",
       "id": "POL-RULES-001",
       "line": 8,
       "severity": "high",
       "text": "rules run before scripts and a deny is final."
+    },
+    {
+      "category": "policy",
+      "file": "src/commands/admin.rs",
+      "id": "POL-REHASH-001",
+      "line": 187,
+      "severity": "medium",
+      "text": "a rejected configuration reports and keeps the running one."
     }
   ],
   "problems": [],
@@ -857,13 +945,37 @@
         "passed": true
       },
       {
+        "detail": "29 cases: defaults, per-flag rendering, key/limit arguments and CHANMODES membership",
+        "id": "C-MODES",
+        "name": "Channel modes render exactly what the gate enforces",
+        "passed": true
+      },
+      {
+        "detail": "19 cases: +l at and below the limit, +k wrong/absent/empty, +i fresh/expiring/lapsed, +R, +b with +e",
+        "id": "C-JOIN",
+        "name": "The join gate refuses on every channel mode, in a fixed order",
+        "passed": true
+      },
+      {
+        "detail": "17 cases: boundary at expires, one warning, expiry removal, re-invite, consumption, withdrawal",
+        "id": "C-INVITE",
+        "name": "Invitations expire at their deadline and warn once before it",
+        "passed": true
+      },
+      {
+        "detail": "4 cases: zero rejected, one second accepted, an over-long warning window allowed",
+        "id": "C-INVITE-CONFIG",
+        "name": "Invitation lifetimes are validated at start-up",
+        "passed": true
+      },
+      {
         "detail": "50000 lines, 26116 accepted, 23884 rejected, 0 invariant failures",
         "id": "C-SOAK",
         "name": "Generated input never panics and always yields a decision",
         "passed": true
       },
       {
-        "detail": "1024 B: 1.80 ns/B, 10240 B: 1.78 ns/B, 102400 B: 1.78 ns/B",
+        "detail": "1024 B: 1.82 ns/B, 10240 B: 1.79 ns/B, 102400 B: 1.79 ns/B",
         "id": "C-WILD",
         "name": "Adversarial wildcard matching stays linear in the input",
         "passed": true
@@ -871,57 +983,57 @@
     ],
     "probes": [
       {
-        "median_ns": 7674.23195,
+        "median_ns": 7673.96095,
         "name": "constant_time_eq/equal"
       },
       {
-        "median_ns": 7659.4392,
+        "median_ns": 7677.1224,
         "name": "constant_time_eq/differs_first"
       },
       {
-        "median_ns": 7711.68325,
+        "median_ns": 7676.1915,
         "name": "constant_time_eq/differs_last"
       },
       {
-        "median_ns": 53.1927,
+        "median_ns": 54.7497,
         "name": "str_eq/equal"
       },
       {
-        "median_ns": 3.41335,
+        "median_ns": 3.1062999999999996,
         "name": "str_eq/differs_first"
       },
       {
-        "median_ns": 55.80415,
+        "median_ns": 55.40485,
         "name": "str_eq/differs_last"
       },
       {
-        "median_ns": 2947.50135,
+        "median_ns": 2932.9123,
         "name": "secret_matches/equal"
       },
       {
-        "median_ns": 3731.47545,
+        "median_ns": 2923.9477,
         "name": "secret_matches/differs_first"
       },
       {
-        "median_ns": 3785.70375,
+        "median_ns": 2912.7998,
         "name": "secret_matches/differs_last"
       }
     ],
     "scaling": [
       {
         "bytes": 1024,
-        "ns_per_byte": 1.8048245087685613,
-        "ns_per_call": 1848.1402969790067
+        "ns_per_byte": 1.8243377576164874,
+        "ns_per_call": 1868.1218637992831
       },
       {
         "bytes": 10240,
-        "ns_per_byte": 1.7793980368589744,
-        "ns_per_call": 18221.035897435897
+        "ns_per_byte": 1.793913261217949,
+        "ns_per_call": 18369.671794871796
       },
       {
         "bytes": 102400,
-        "ns_per_byte": 1.778102898848684,
-        "ns_per_call": 182077.73684210525
+        "ns_per_byte": 1.788850226151316,
+        "ns_per_call": 183178.26315789475
       }
     ],
     "soak": {
@@ -966,12 +1078,12 @@
         "name": "parse/plain",
         "note": "one prefix, two parameters; allocates each present field",
         "sample": {
-          "cv_pct": 2.11157459160877,
+          "cv_pct": 0.40959829444107865,
           "iterations": 20000,
-          "max_ns": 196.795,
-          "median_ns": 188.97135,
-          "min_ns": 184.39625,
-          "ops_per_second": 5291807.461818947,
+          "max_ns": 162.4731,
+          "median_ns": 161.325,
+          "min_ns": 160.77145,
+          "ops_per_second": 6198667.286533396,
           "rounds": 7
         }
       },
@@ -979,12 +1091,12 @@
         "name": "parse/tagged",
         "note": "three IRCv3 tags plus the same body as `parse/plain`",
         "sample": {
-          "cv_pct": 0.6544353851374473,
+          "cv_pct": 0.48207018987550315,
           "iterations": 20000,
-          "max_ns": 612.59515,
-          "median_ns": 605.283,
-          "min_ns": 600.10025,
-          "ops_per_second": 1652119.752248122,
+          "max_ns": 488.7615,
+          "median_ns": 485.59305,
+          "min_ns": 480.87015,
+          "ops_per_second": 2059337.5461201514,
           "rounds": 7
         }
       },
@@ -992,12 +1104,12 @@
         "name": "parse/reject_control",
         "note": "the injection guard: cost of rejecting a line with one control byte",
         "sample": {
-          "cv_pct": 18.56698796094463,
+          "cv_pct": 2.3473128457135926,
           "iterations": 20000,
-          "max_ns": 18.2928,
-          "median_ns": 14.28985,
-          "min_ns": 11.11785,
-          "ops_per_second": 69979740.86501957,
+          "max_ns": 12.86765,
+          "median_ns": 12.351150000000002,
+          "min_ns": 12.0451,
+          "ops_per_second": 80964120.74988967,
           "rounds": 7
         }
       },
@@ -1005,12 +1117,12 @@
         "name": "serialise/untagged",
         "note": "reuses one buffer, so this is the encode cost without allocation",
         "sample": {
-          "cv_pct": 13.753072604031091,
+          "cv_pct": 1.6067494141473733,
           "iterations": 20000,
-          "max_ns": 34.8238,
-          "median_ns": 29.2413,
-          "min_ns": 23.5046,
-          "ops_per_second": 34198205.96211523,
+          "max_ns": 25.7809,
+          "median_ns": 25.064450000000004,
+          "min_ns": 24.702300000000005,
+          "ops_per_second": 39897145.15977809,
           "rounds": 7
         }
       },
@@ -1018,12 +1130,12 @@
         "name": "serialise/tagged",
         "note": "three tags including one client tag; same reused-buffer method",
         "sample": {
-          "cv_pct": 3.263367020316885,
+          "cv_pct": 0.4681288286332721,
           "iterations": 20000,
-          "max_ns": 180.4662,
-          "median_ns": 173.41465,
-          "min_ns": 165.335,
-          "ops_per_second": 5766525.492511734,
+          "max_ns": 136.34065,
+          "median_ns": 135.1379,
+          "min_ns": 134.3018,
+          "ops_per_second": 7399848.599097663,
           "rounds": 7
         }
       },
@@ -1031,12 +1143,12 @@
         "name": "casemap/fold",
         "note": "RFC 1459 fold of a 24-byte nickname into a fresh String",
         "sample": {
-          "cv_pct": 1.6290102397181114,
+          "cv_pct": 1.1508555001683107,
           "iterations": 20000,
-          "max_ns": 52.9628,
-          "median_ns": 51.576750000000004,
-          "min_ns": 50.1796,
-          "ops_per_second": 19388581.095164,
+          "max_ns": 42.5768,
+          "median_ns": 41.87805,
+          "min_ns": 41.0359,
+          "ops_per_second": 23878857.77871701,
           "rounds": 7
         }
       },
@@ -1044,12 +1156,12 @@
         "name": "casemap/eq",
         "note": "case-insensitive comparison with no allocation",
         "sample": {
-          "cv_pct": 16.660376043341827,
+          "cv_pct": 1.9769355559155484,
           "iterations": 20000,
-          "max_ns": 39.4755,
-          "median_ns": 35.8542,
-          "min_ns": 24.614150000000002,
-          "ops_per_second": 27890735.25556281,
+          "max_ns": 21.8184,
+          "median_ns": 21.2093,
+          "min_ns": 20.67475,
+          "ops_per_second": 47149127.97687807,
           "rounds": 7
         }
       },
@@ -1057,12 +1169,12 @@
         "name": "wildcard/hostmask",
         "note": "`*!*@*.example.org` against a matching mask",
         "sample": {
-          "cv_pct": 3.828344923453707,
+          "cv_pct": 1.8053199206743618,
           "iterations": 20000,
-          "max_ns": 59.4154,
-          "median_ns": 55.39785,
-          "min_ns": 53.6005,
-          "ops_per_second": 18051242.060838103,
+          "max_ns": 47.3117,
+          "median_ns": 45.2198,
+          "min_ns": 44.7199,
+          "ops_per_second": 22114206.608609505,
           "rounds": 7
         }
       },
@@ -1070,12 +1182,12 @@
         "name": "wildcard/miss",
         "note": "the same mask against a non-matching host, so the scan runs to the end",
         "sample": {
-          "cv_pct": 4.18510596222873,
+          "cv_pct": 0.4767334706132825,
           "iterations": 20000,
-          "max_ns": 89.6386,
-          "median_ns": 86.5568,
-          "min_ns": 79.5001,
-          "ops_per_second": 11553107.323745795,
+          "max_ns": 64.37115,
+          "median_ns": 63.999,
+          "min_ns": 63.5081,
+          "ops_per_second": 15625244.144439757,
           "rounds": 7
         }
       },
@@ -1083,12 +1195,12 @@
         "name": "ban/match_16th",
         "note": "16 entries, match on the last one; the derived masks are built once",
         "sample": {
-          "cv_pct": 1.05853691712929,
+          "cv_pct": 1.9407735532769876,
           "iterations": 20000,
-          "max_ns": 2258.1167,
-          "median_ns": 2235.96065,
-          "min_ns": 2179.10355,
-          "ops_per_second": 447235.0620302732,
+          "max_ns": 1922.2354,
+          "median_ns": 1834.74435,
+          "min_ns": 1811.02585,
+          "ops_per_second": 545035.0616967427,
           "rounds": 7
         }
       },
@@ -1096,12 +1208,12 @@
         "name": "dispatch/hit",
         "note": "command table lookup for an existing verb",
         "sample": {
-          "cv_pct": 30.269784289195023,
+          "cv_pct": 3.483996460661179,
           "iterations": 20000,
-          "max_ns": 6.04585,
-          "median_ns": 3.1022999999999996,
-          "min_ns": 2.79675,
-          "ops_per_second": 322341488.5729943,
+          "max_ns": 3.10335,
+          "median_ns": 3.1018,
+          "min_ns": 2.7977,
+          "ops_per_second": 322393448.96511704,
           "rounds": 7
         }
       },
@@ -1109,12 +1221,12 @@
         "name": "dispatch/miss",
         "note": "lookup of a verb that does not exist",
         "sample": {
-          "cv_pct": 1.1108570380077172,
+          "cv_pct": 0.04071908636349331,
           "iterations": 20000,
-          "max_ns": 2.7697,
-          "median_ns": 2.70755,
-          "min_ns": 2.69505,
-          "ops_per_second": 369337593.02690625,
+          "max_ns": 2.1796,
+          "median_ns": 2.17755,
+          "min_ns": 2.1766,
+          "ops_per_second": 459231705.3569378,
           "rounds": 7
         }
       },
@@ -1122,12 +1234,12 @@
         "name": "validate/nickname",
         "note": "RFC 1459 nickname validation, one pass over the bytes",
         "sample": {
-          "cv_pct": 19.563883759581696,
+          "cv_pct": 1.171405695792715,
           "iterations": 20000,
-          "max_ns": 28.9558,
-          "median_ns": 20.77695,
-          "min_ns": 16.66725,
-          "ops_per_second": 48130259.73494666,
+          "max_ns": 19.7014,
+          "median_ns": 19.13285,
+          "min_ns": 19.13235,
+          "ops_per_second": 52266128.67398218,
           "rounds": 7
         }
       },
@@ -1135,12 +1247,12 @@
         "name": "format/numeric",
         "note": "numeric reply rendered through Display, which allocates",
         "sample": {
-          "cv_pct": 6.383752962292363,
+          "cv_pct": 0.714785309737922,
           "iterations": 20000,
-          "max_ns": 71.8773,
-          "median_ns": 65.4011,
-          "min_ns": 60.808,
-          "ops_per_second": 15290262.702003483,
+          "max_ns": 49.84795,
+          "median_ns": 49.1782,
+          "min_ns": 48.6452,
+          "ops_per_second": 20334213.126954626,
           "rounds": 7
         }
       }

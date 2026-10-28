@@ -6,18 +6,18 @@
 
 | Measure | Value |
 | --- | --- |
-| Checks | 10 total, 0 failed |
+| Checks | 14 total, 0 failed |
 | Soak | 50000 lines, 26116 accepted, 23884 rejected, 0 invariant failures |
-| Markers | 23 valid, 0 problems |
-| Commit | `cb5cea2` |
+| Markers | 34 valid, 0 problems |
+| Commit | `9bb1a43` |
 
 ### Markers by severity
 
 | Severity | Count |
 | --- | ---: |
-| critical | 3 |
-| high | 12 |
-| medium | 7 |
+| critical | 4 |
+| high | 21 |
+| medium | 8 |
 | low | 1 |
 | info | 0 |
 
@@ -35,8 +35,12 @@ Each row is asserted by `src/bin/audit/security.rs` against the real library, no
 | Server introductions are admitted only by the configured policy | `C-LINK-ADMIT` | pass | 12 cases: PASS, name, allowlist, self-link, configured-link and duplicate-path rules |
 | Certificate fingerprints are pinned to exactly one account | `C-PIN` | pass | 10 cases: exact match, authzid binding, case folding, no partial or foreign match |
 | Pinned fingerprints are shape-checked before the daemon starts | `C-PIN-CONFIG` | pass | 8 cases: 64 hex digits accepted; short, long, non-hex, duplicate and credential-less entries rejected |
+| Channel modes render exactly what the gate enforces | `C-MODES` | pass | 29 cases: defaults, per-flag rendering, key/limit arguments and CHANMODES membership |
+| The join gate refuses on every channel mode, in a fixed order | `C-JOIN` | pass | 19 cases: +l at and below the limit, +k wrong/absent/empty, +i fresh/expiring/lapsed, +R, +b with +e |
+| Invitations expire at their deadline and warn once before it | `C-INVITE` | pass | 17 cases: boundary at expires, one warning, expiry removal, re-invite, consumption, withdrawal |
+| Invitation lifetimes are validated at start-up | `C-INVITE-CONFIG` | pass | 4 cases: zero rejected, one second accepted, an over-long warning window allowed |
 | Generated input never panics and always yields a decision | `C-SOAK` | pass | 50000 lines, 26116 accepted, 23884 rejected, 0 invariant failures |
-| Adversarial wildcard matching stays linear in the input | `C-WILD` | pass | 1024 B: 1.80 ns/B, 10240 B: 1.78 ns/B, 102400 B: 1.78 ns/B |
+| Adversarial wildcard matching stays linear in the input | `C-WILD` | pass | 1024 B: 1.82 ns/B, 10240 B: 1.79 ns/B, 102400 B: 1.79 ns/B |
 
 ## Parser soak
 
@@ -75,15 +79,21 @@ A link is admitted in two stages. `PASS` authenticates the connection, and `SERV
 
 Certificate pinning is the TLS counterpart. The handshake deliberately accepts any client certificate, because identity comes from an exact SHA-256 fingerprint pinned to one account rather than from a CA chain. The harness checks that a fingerprint authenticates only its account, that an authzid cannot borrow another account's certificate, that an unknown authzid is not rescued by a valid certificate, that partial or altered digests fail, and that a certificate-only backend advertises `EXTERNAL` alone. `C-PIN-CONFIG` covers the start-up side: a value that is not 64 hex digits is refused before the daemon binds a socket.
 
+## Channel modes and invitations
+
+The join gate moved out of the `JOIN` handler into `Channel::join_check`, which returns a `JoinRefusal` carrying both the numeric and the wire reason. The harness drives the gate directly: `+l` at, below and at a limit of zero (which refuses everyone), `+k` with a wrong, absent or empty key, `+i` with a fresh, exactly-expiring and already-lapsed invitation, `+R` with and without an account, and `+b` with an account exception. It also fixes the order a client sees when several modes apply: `+l` before `+k` before `+i` before `+R` before `+b`.
+
+An invitation is a grant to a session with a deadline. The harness checks the boundary at `expires` exactly, that a warning is delivered once when the remaining time reaches the configured window, that a warning does not revoke the grant, that expiry removes and reports it, that re-inviting extends it, that joining consumes it and that withdrawing clears it. A zero lifetime is refused at start-up, while a warning window longer than the lifetime is allowed and simply warns on the first sweep.
+
 ### Wildcard cost
 
 Ban masks and hook conditions use `wildcard_match`. The matcher keeps a single backtrack point (the most recent `*`), so cost is bounded by `len(text) * len(pattern)` with no exponential case. Measured with the adversarial pattern `*a*a*a*a*a*a*a*b`:
 
 | Input bytes | Per call | Per byte |
 | ---: | ---: | ---: |
-| 1024 | 1.85 us | 1.80 ns |
-| 10240 | 18.22 us | 1.78 ns |
-| 102400 | 182.08 us | 1.78 ns |
+| 1024 | 1.87 us | 1.82 ns |
+| 10240 | 18.37 us | 1.79 ns |
+| 102400 | 183.18 us | 1.79 ns |
 
 ### Credential comparison timing
 
@@ -92,14 +102,14 @@ Ban masks and hook conditions use `wildcard_match`. The matcher keeps a single b
 | Probe | Median |
 | --- | ---: |
 | `constant_time_eq/equal` | 7.67 us |
-| `constant_time_eq/differs_first` | 7.66 us |
-| `constant_time_eq/differs_last` | 7.71 us |
-| `str_eq/equal` | 53.2 ns |
-| `str_eq/differs_first` | 3.4 ns |
-| `str_eq/differs_last` | 55.8 ns |
-| `secret_matches/equal` | 2.95 us |
-| `secret_matches/differs_first` | 3.73 us |
-| `secret_matches/differs_last` | 3.79 us |
+| `constant_time_eq/differs_first` | 7.68 us |
+| `constant_time_eq/differs_last` | 7.68 us |
+| `str_eq/equal` | 54.7 ns |
+| `str_eq/differs_first` | 3.1 ns |
+| `str_eq/differs_last` | 55.4 ns |
+| `secret_matches/equal` | 2.93 us |
+| `secret_matches/differs_first` | 2.92 us |
+| `secret_matches/differs_last` | 2.91 us |
 
 ## Security and safety markers
 
@@ -108,12 +118,18 @@ Ban masks and hook conditions use `wildcard_match`. The matcher keeps a single b
 | `SEC-AUTH-001` | critical | [src/auth.rs:69](../src/auth.rs#L69) | all credential failures are indistinguishable. |
 | `SEC-CONTROL-001` | critical | [src/protocol/message.rs:103](../src/protocol/message.rs#L103) | rejects C0/DEL before copying any field. |
 | `SEC-LINK-001` | critical | [src/server/link.rs:308](../src/server/link.rs#L308) | a link is refused unless the configured password matches. |
-| `SEC-BAN-001` | high | [src/server/channel.rs:295](../src/server/channel.rs#L295) | exceptions override bans, including `$a:` entries. |
+| `SEC-OPER-001` | critical | [src/commands/admin.rs:146](../src/commands/admin.rs#L146) | operator passwords are verified against a SHA-256 hash. |
+| `SEC-BAN-001` | high | [src/server/channel.rs:377](../src/server/channel.rs#L377) | exceptions override bans, including `$a:` entries. |
 | `SEC-BOMB-001` | high | [src/net/connection.rs:280](../src/net/connection.rs#L280) | frame sizes are checked before allocating. |
 | `SEC-CT-001` | high | [src/util.rs:129](../src/util.rs#L129) | digest comparison cannot short-circuit. |
+| `SEC-JOIN-001` | high | [src/commands/channel.rs:144](../src/commands/channel.rs#L144) | every channel mode is enforced in one ordered gate. |
 | `SEC-LINK-002` | high | [src/server/link.rs:323](../src/server/link.rs#L323) | digests are compared, so neither content nor length leaks. |
+| `SEC-PASS-001` | high | [src/commands/registration.rs:98](../src/commands/registration.rs#L98) | the connection password is compared by digest. |
 | `SEC-PIN-001` | high | [src/auth.rs:183](../src/auth.rs#L183) | the fingerprint must match exactly and the authzid binds the name. |
+| `SEC-QUEUE-001` | high | [src/server/client.rs:491](../src/server/client.rs#L491) | a full send queue disconnects instead of growing the heap. |
+| `SEC-SASL-001` | high | [src/commands/registration.rs:16](../src/commands/registration.rs#L16) | the reassembled payload is capped before decoding. |
 | `SEC-SECRET-001` | high | [src/util.rs:137](../src/util.rs#L137) | secrets are compared by digest, never byte-wise. |
+| `SEC-SPEAK-001` | high | [src/commands/messaging.rs:138](../src/commands/messaging.rs#L138) | speaking is gated by +R, +m, +n and bans. |
 | `SEC-TAG-001` | high | [src/protocol/message.rs:182](../src/protocol/message.rs#L182) | relays only `+` tags and allowlisted vendor tags. |
 | `SEC-TLS-001` | high | [src/net/tls.rs:110](../src/net/tls.rs#L110) | identity comes from the pinned fingerprint, not a CA chain. |
 | `SEC-WILD-001` | high | [src/util.rs:37](../src/util.rs#L37) | one backtrack point bounds hostile ban masks. |
@@ -122,7 +138,11 @@ Ban masks and hook conditions use `wildcard_match`. The matcher keeps a single b
 | `SAF-FORK-001` | high | [src/daemon.rs:22](../src/daemon.rs#L22) | runs before any thread or runtime exists. |
 | `SAF-FFI-001` | medium | [src/util.rs:85](../src/util.rs#L85) | buffer and length arguments match by construction. |
 | `SAF-WINLOG-001` | medium | [src/logging.rs:325](../src/logging.rs#L325) | API-owned handles, freed exactly once. |
+| `POL-INVITE-001` | high | [src/server/mod.rs:459](../src/server/mod.rs#L459) | each server notifies only the participants it houses locally. |
+| `POL-INVITE-002` | high | [src/commands/channel.rs:540](../src/commands/channel.rs#L540) | every invitation carries the configured lifetime. |
+| `POL-REG-001` | high | [src/commands/registration.rs:505](../src/commands/registration.rs#L505) | SASL and connection passwords are both enforced before 001. |
 | `POL-RULES-001` | high | [src/script/rules.rs:8](../src/script/rules.rs#L8) | rules run before scripts and a deny is final. |
+| `POL-REHASH-001` | medium | [src/commands/admin.rs:187](../src/commands/admin.rs#L187) | a rejected configuration reports and keeps the running one. |
 
 ## Static inventory
 
@@ -130,8 +150,8 @@ Textual counts across the trees. `expect` is allowed for invariant violations wi
 
 | Tree | Files | Lines | Code | unsafe | unwrap | expect | panic | allow | debug prints | stubs |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `src` | 29 | 12742 | 10355 | 8 | 0 | 59 | 1 | 0 | 3 | 0 |
-| `src/bin` | 6 | 3165 | 2654 | 5 | 6 | 46 | 1 | 2 | 18 | 2 |
+| `src` | 29 | 12819 | 10389 | 8 | 0 | 59 | 1 | 0 | 3 | 0 |
+| `src/bin` | 6 | 3674 | 3126 | 5 | 6 | 97 | 1 | 2 | 18 | 2 |
 | `tests` | 6 | 3843 | 3257 | 0 | 0 | 374 | 26 | 0 | 0 | 0 |
 | `benches` | 4 | 503 | 420 | 0 | 0 | 10 | 0 | 0 | 8 | 0 |
 
@@ -141,12 +161,6 @@ Modules of at least 150 lines carrying no `MARK:` annotation. These were read or
 
 | File | Code lines |
 | --- | ---: |
-| `src/server/mod.rs` | 929 |
-| `src/commands/channel.rs` | 913 |
-| `src/commands/registration.rs` | 550 |
-| `src/server/client.rs` | 512 |
-| `src/commands/messaging.rs` | 492 |
-| `src/commands/admin.rs` | 443 |
 | `src/hooks.rs` | 356 |
 | `src/net/compress.rs` | 300 |
 | `src/net/mod.rs` | 253 |

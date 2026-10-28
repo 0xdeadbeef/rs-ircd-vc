@@ -9,7 +9,7 @@ use parking_lot::RwLock;
 use crate::commands::{is_channel_name, valid_channel_name, Access, Cmd, CmdFuture, CommandSpec};
 use crate::error::CommandError;
 use crate::protocol::{Message, Numeric};
-use crate::server::channel::{BanEntry, MemberMode};
+use crate::server::channel::{BanEntry, JoinRefusal, JoinRequest, MemberMode};
 use crate::server::{CapSet, Channel, ClientHandle};
 use crate::util::now_unix;
 
@@ -125,28 +125,6 @@ fn join_one(cx: &Cmd, name: &str, key: &str) -> Result<(), CommandError> {
 
     let (recipients, members, topic, channel_name) = {
         let mut channel = entry.value().write();
-        if let Some(limit) = channel.limit {
-            if channel.len() >= limit {
-                return Err(cx.fail(
-                    Numeric::ERR_CHANNELISFULL,
-                    format!("{name} :Cannot join channel (+l)"),
-                ));
-            }
-        }
-        if let Some(expected) = &channel.key {
-            if key != expected {
-                return Err(cx.fail(
-                    Numeric::ERR_BADCHANNELKEY,
-                    format!("{name} :Cannot join channel (+k)"),
-                ));
-            }
-        }
-        if channel.invite_only && !channel.invited(cx.client.id) {
-            return Err(cx.fail(
-                Numeric::ERR_INVITEONLYCHAN,
-                format!("{name} :Cannot join channel (+i)"),
-            ));
-        }
         let (nick, user, host, account) = cx.client.session(|session| {
             (
                 session.nick.clone().unwrap_or_default(),
@@ -155,17 +133,24 @@ fn join_one(cx: &Cmd, name: &str, key: &str) -> Result<(), CommandError> {
                 session.account.clone(),
             )
         });
-        if channel.account_only && account.is_none() {
-            return Err(cx.fail(
-                Numeric::ERR_NEEDREGGEDNICK,
-                format!("{name} :Cannot join channel (+R) - you need to be authenticated"),
-            ));
-        }
-        if channel.is_banned(&nick, &user, &host, account.as_deref()) {
-            return Err(cx.fail(
-                Numeric::ERR_BANNEDFROMCHAN,
-                format!("{name} :Cannot join channel (+b)"),
-            ));
+        let request = JoinRequest {
+            id: cx.client.id,
+            nick: &nick,
+            user: &user,
+            host: &host,
+            account: account.as_deref(),
+            key,
+        };
+        // MARK: security: high: SEC-JOIN-001: every channel mode is enforced in one ordered gate.
+        if let Err(refusal) = channel.join_check(&request, std::time::Instant::now()) {
+            let numeric = match refusal {
+                JoinRefusal::Full => Numeric::ERR_CHANNELISFULL,
+                JoinRefusal::BadKey => Numeric::ERR_BADCHANNELKEY,
+                JoinRefusal::InviteOnly => Numeric::ERR_INVITEONLYCHAN,
+                JoinRefusal::AccountOnly => Numeric::ERR_NEEDREGGEDNICK,
+                JoinRefusal::Banned => Numeric::ERR_BANNEDFROMCHAN,
+            };
+            return Err(cx.fail(numeric, format!("{name} :{}", refusal.reason())));
         }
         channel.add(cx.client.id);
         let members = channel
@@ -552,6 +537,7 @@ fn cmd_invite(cx: Cmd) -> CmdFuture {
                     format!("{channel_name} :You're not channel operator"),
                 ));
             }
+            // MARK: policy: high: POL-INVITE-002: every invitation carries the configured lifetime.
             let ttl = std::time::Duration::from_secs(cx.server.cfg().server.invite_expiry_secs);
             guard.invite(target.id, cx.nick(), ttl);
         }

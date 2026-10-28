@@ -9,9 +9,9 @@
 | Cases | 14 |
 | Operations per round | 20000 |
 | Rounds | 7 |
-| Slowest case | `ban/match_16th` at 2.24 us |
-| Cases above 10% variation | 5 |
-| Commit | `cb5cea2` |
+| Slowest case | `ban/match_16th` at 1.83 us |
+| Cases above 10% variation | 0 |
+| Commit | `9bb1a43` |
 
 ## Measurements
 
@@ -19,20 +19,20 @@
 
 | Case | Median | Min | Max | cv | Implied rate | Iterations |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `parse/plain` | 189.0 ns | 184.4 ns | 196.8 ns | 2.1% | 5.3 M/s | 20000 |
-| `parse/tagged` | 605.3 ns | 600.1 ns | 612.6 ns | 0.7% | 1.7 M/s | 20000 |
-| `parse/reject_control` | 14.3 ns | 11.1 ns | 18.3 ns | 18.6% | 70.0 M/s | 20000 |
-| `serialise/untagged` | 29.2 ns | 23.5 ns | 34.8 ns | 13.8% | 34.2 M/s | 20000 |
-| `serialise/tagged` | 173.4 ns | 165.3 ns | 180.5 ns | 3.3% | 5.8 M/s | 20000 |
-| `casemap/fold` | 51.6 ns | 50.2 ns | 53.0 ns | 1.6% | 19.4 M/s | 20000 |
-| `casemap/eq` | 35.9 ns | 24.6 ns | 39.5 ns | 16.7% | 27.9 M/s | 20000 |
-| `wildcard/hostmask` | 55.4 ns | 53.6 ns | 59.4 ns | 3.8% | 18.1 M/s | 20000 |
-| `wildcard/miss` | 86.6 ns | 79.5 ns | 89.6 ns | 4.2% | 11.6 M/s | 20000 |
-| `ban/match_16th` | 2.24 us | 2.18 us | 2.26 us | 1.1% | 447 k/s | 20000 |
-| `dispatch/hit` | 3.1 ns | 2.8 ns | 6.0 ns | 30.3% | 322.3 M/s | 20000 |
-| `dispatch/miss` | 2.7 ns | 2.7 ns | 2.8 ns | 1.1% | 369.3 M/s | 20000 |
-| `validate/nickname` | 20.8 ns | 16.7 ns | 29.0 ns | 19.6% | 48.1 M/s | 20000 |
-| `format/numeric` | 65.4 ns | 60.8 ns | 71.9 ns | 6.4% | 15.3 M/s | 20000 |
+| `parse/plain` | 161.3 ns | 160.8 ns | 162.5 ns | 0.4% | 6.2 M/s | 20000 |
+| `parse/tagged` | 485.6 ns | 480.9 ns | 488.8 ns | 0.5% | 2.1 M/s | 20000 |
+| `parse/reject_control` | 12.4 ns | 12.0 ns | 12.9 ns | 2.3% | 81.0 M/s | 20000 |
+| `serialise/untagged` | 25.1 ns | 24.7 ns | 25.8 ns | 1.6% | 39.9 M/s | 20000 |
+| `serialise/tagged` | 135.1 ns | 134.3 ns | 136.3 ns | 0.5% | 7.4 M/s | 20000 |
+| `casemap/fold` | 41.9 ns | 41.0 ns | 42.6 ns | 1.2% | 23.9 M/s | 20000 |
+| `casemap/eq` | 21.2 ns | 20.7 ns | 21.8 ns | 2.0% | 47.1 M/s | 20000 |
+| `wildcard/hostmask` | 45.2 ns | 44.7 ns | 47.3 ns | 1.8% | 22.1 M/s | 20000 |
+| `wildcard/miss` | 64.0 ns | 63.5 ns | 64.4 ns | 0.5% | 15.6 M/s | 20000 |
+| `ban/match_16th` | 1.83 us | 1.81 us | 1.92 us | 1.9% | 545 k/s | 20000 |
+| `dispatch/hit` | 3.1 ns | 2.8 ns | 3.1 ns | 3.5% | 322.4 M/s | 20000 |
+| `dispatch/miss` | 2.2 ns | 2.2 ns | 2.2 ns | 0.0% | 459.2 M/s | 20000 |
+| `validate/nickname` | 19.1 ns | 19.1 ns | 19.7 ns | 1.2% | 52.3 M/s | 20000 |
+| `format/numeric` | 49.2 ns | 48.6 ns | 49.8 ns | 0.7% | 20.3 M/s | 20000 |
 
 ## Interpretation
 
@@ -58,6 +58,7 @@
 | ID | Severity | Location | Note |
 | --- | --- | --- | --- |
 | `SPD-DISPATCH-001` | high | [src/commands/mod.rs:76](../src/commands/mod.rs#L76) | match tree beats hashing (benches/dispatch.rs). |
+| `SPD-FANOUT-001` | high | [src/server/mod.rs:542](../src/server/mod.rs#L542) | serialisations are shared across the audience, not built per recipient. |
 | `SPD-BAN-001` | medium | [src/server/channel.rs:73](../src/server/channel.rs#L73) | caller builds both masks once per check. |
 | `SPD-SER-001` | medium | [src/protocol/message.rs:224](../src/protocol/message.rs#L224) | single pass into the caller's buffer. |
 | `SPD-CASEMAP-001` | low | [src/casemap.rs:81](../src/casemap.rs#L81) | folds byte-wise, no allocation on the hot path. |

@@ -456,6 +456,7 @@ impl Server {
     /// Each server announces only the participants it houses locally, so a
     /// remote invitee or inviter is told by its own server instead of needing
     /// the notice relayed. Returns the number of notices delivered.
+    // MARK: policy: high: POL-INVITE-001: each server notifies only the participants it houses locally.
     pub fn sweep_invites(self: &Arc<Self>) -> usize {
         let warn_before = Duration::from_secs(self.cfg().server.invite_warning_secs);
         let now = std::time::Instant::now();
@@ -538,6 +539,7 @@ impl Server {
     /// `server-time` get `@time`. At most four serialisations are produced
     /// whatever the audience size, so fan-out stays O(recipients) with shared
     /// allocations.
+    // MARK: speed: high: SPD-FANOUT-001: serialisations are shared across the audience, not built per recipient.
     fn deliver(
         &self,
         recipients: impl IntoIterator<Item = Arc<ClientHandle>>,

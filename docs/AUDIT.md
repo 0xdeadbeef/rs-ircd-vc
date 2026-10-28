@@ -128,6 +128,10 @@ environment fingerprinted and a stable machine-readable shape.
 | `C-LINK-ADMIT` | The `SERVER` policy refuses a connection without `PASS`, an empty name, an unlisted peer, a self-link, an unconfigured dialled link and a duplicate path, in that order |
 | `C-PIN` | A pinned fingerprint authenticates only its account: exact match, case-insensitive, authzid binds the name, no partial match, no fallback for an unknown authzid |
 | `C-PIN-CONFIG` | Pinned fingerprints must be 64 hex digits at start-up; short, long, non-hex, duplicate and credential-less accounts are rejected |
+| `C-MODES` | Modes render exactly what the gate enforces: defaults, each flag alone, key and limit as arguments, and every rendered letter present in `CHANMODES` |
+| `C-JOIN` | The join gate refuses on `+l` (including a zero limit), `+k` (wrong, absent and empty key), `+i` (fresh, expiring, lapsed), `+R` and `+b`, reporting `+l` before `+k` before `+i` before `+R` |
+| `C-INVITE` | An invitation is valid until `expires` exclusive, warns once at the window boundary without being revoked, is removed and reported at expiry, and is extended by re-inviting and cleared by joining or withdrawal |
+| `C-INVITE-CONFIG` | A zero `invite_expiry_secs` is rejected at start-up; one second is accepted and a warning window longer than the lifetime is allowed |
 
 The soak generator is a seeded xorshift64 with no dependency, blending valid
 message shapes (70%), fragment soup (30%), control bytes, multi-byte UTF-8 and
@@ -156,7 +160,8 @@ starts the daemon, so it runs offline in CI.
 * The soak harness is deterministic and grammar-limited. It exercises the
   paths its generator reaches; a coverage-guided fuzzer is the right next step.
 * No dependency advisory check is performed (`cargo audit` covers that).
-* The harness covers the link *admission policy* and the certificate pinning
-  *decision*, not the TLS handshake, routing convergence or rate limits: those
-  need real sockets and live in `tests/tls.rs`, `tests/linking.rs`,
-  `tests/split.rs` and `tests/dialer.rs`.
+* The harness covers the link *admission policy*, the certificate pinning
+  *decision*, the channel join gate and invitation lifetimes, but not the TLS
+  handshake, routing convergence or rate limits: those need real sockets and
+  live in `tests/tls.rs`, `tests/linking.rs`, `tests/split.rs` and
+  `tests/dialer.rs`.

@@ -488,6 +488,7 @@ impl ClientHandle {
             return true;
         };
         let bytes = self.label_response(bytes);
+        // MARK: security: high: SEC-QUEUE-001: a full send queue disconnects instead of growing the heap.
         match outbound.try_send(Outbound::Line(bytes)) {
             Ok(()) => true,
             Err(mpsc::error::TrySendError::Full(_)) => {

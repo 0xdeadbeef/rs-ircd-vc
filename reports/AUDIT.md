@@ -15,29 +15,29 @@ This is the entry point for the generated audit material. Both reports below are
 | Measure | Value |
 | --- | --- |
 | Source files scanned | 29 |
-| Source lines | 12742 |
-| Markers | 23 valid, 0 problems |
-| Security checks | 10 of 10 passing |
+| Source lines | 12819 |
+| Markers | 34 valid, 0 problems |
+| Security checks | 14 of 14 passing |
 | Soak | 50000 generated lines, 0 invariant failures |
 | Speed cases | 14 |
 | Unsafe blocks in `src` | 8 |
-| Commit | `cb5cea2` |
+| Commit | `9bb1a43` |
 
 ## Marker totals
 
 | Category | Markers |
 | --- | ---: |
-| security | 14 |
+| security | 20 |
 | safety | 3 |
-| speed | 4 |
+| speed | 5 |
 | protocol | 1 |
-| policy | 1 |
+| policy | 5 |
 
 | Severity | Markers |
 | --- | ---: |
-| critical | 3 |
-| high | 12 |
-| medium | 7 |
+| critical | 4 |
+| high | 21 |
+| medium | 8 |
 | low | 1 |
 | info | 0 |
 
@@ -45,8 +45,8 @@ This is the entry point for the generated audit material. Both reports below are
 
 | Property | Value |
 | --- | --- |
-| Generated | 2026-10-28T19:33:42.266896752Z |
-| Commit | `cb5cea2` |
+| Generated | 2026-10-28T19:42:00.832569619Z |
+| Commit | `9bb1a43` |
 | Target | `x86_64-linux` |
 | Profile | release |
 | Toolchain | `rustc 1.99.1 (58cf8f9c3 2026-10-13)` |

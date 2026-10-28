@@ -5,9 +5,13 @@
 //! a regression shows up as a failed row rather than a sentence in a design
 //! document.
 
+use std::collections::BTreeSet;
+use std::time::{Duration, Instant};
+
 use ircd::auth::{AccountBackend, ConfigAccounts, Credential};
 use ircd::config::{AccountSection, Config, LinkSection, ListenSection};
 use ircd::protocol::{Message, ParseError};
+use ircd::server::channel::{BanEntry, Channel, Invite, JoinRefusal, JoinRequest};
 use ircd::server::link::{admit, usable_link_password, Refusal, ServerIntroduction};
 use ircd::util::{constant_time_eq, secret_matches, sha256_hex, wildcard_match};
 
@@ -102,6 +106,10 @@ pub fn run(soak_iterations: u64, seed: u64) -> SecurityReport {
             link_admission(),
             certificate_pinning(),
             pinning_config(),
+            channel_modes(),
+            join_gate(),
+            invite_expiry(),
+            invite_config(),
         ],
         ..SecurityReport::default()
     };
@@ -504,6 +512,470 @@ fn config_with_accounts(accounts: Vec<AccountSection>) -> Config {
         server_link: false,
     });
     config
+}
+
+/// Channel mode rendering and the advertised `CHANMODES` set.
+fn channel_modes() -> Check {
+    let mut expectations = Expectations::default();
+    let fresh = Channel::new("#test");
+    expectations.expect("a new channel renders +nt", fresh.mode_string() == "+nt");
+    expectations.expect(
+        "a new channel blocks external messages and locks the topic",
+        fresh.no_external && fresh.topic_lock,
+    );
+    expectations.expect(
+        "a new channel leaves optional modes off",
+        !fresh.invite_only
+            && !fresh.moderated
+            && !fresh.private
+            && !fresh.secret
+            && !fresh.account_only,
+    );
+
+    /// A mode letter and the way to switch it on.
+    type FlagCase = (&'static str, fn(&mut Channel));
+
+    let flag_cases: [FlagCase; 7] = [
+        ("i", |channel| channel.invite_only = true),
+        ("m", |channel| channel.moderated = true),
+        ("n", |channel| channel.no_external = true),
+        ("p", |channel| channel.private = true),
+        ("s", |channel| channel.secret = true),
+        ("t", |channel| channel.topic_lock = true),
+        ("R", |channel| channel.account_only = true),
+    ];
+    for (letter, enable) in flag_cases {
+        let mut channel = Channel::new("#test");
+        channel.no_external = false;
+        channel.topic_lock = false;
+        enable(&mut channel);
+        let rendered = channel.mode_string();
+        expectations.expect(
+            &format!("{letter} renders on its own"),
+            rendered == format!("+{letter}"),
+        );
+    }
+
+    let letters: BTreeSet<char> = Channel::LETTERS.chars().collect();
+    expectations.expect(
+        "CHANMODES has no duplicate letters",
+        letters.len() == Channel::LETTERS.chars().count(),
+    );
+    expectations.expect(
+        "CHANMODES lists thirteen letters",
+        Channel::LETTERS.len() == 13,
+    );
+    for letter in [
+        'i', 'm', 'n', 'p', 's', 't', 'R', 'k', 'l', 'o', 'v', 'b', 'e',
+    ] {
+        expectations.expect(
+            &format!("{letter} is advertised in CHANMODES"),
+            letters.contains(&letter),
+        );
+    }
+
+    let mut everything = Channel::new("#test");
+    everything.invite_only = true;
+    everything.moderated = true;
+    everything.private = true;
+    everything.secret = true;
+    everything.account_only = true;
+    everything.key = Some("sekrit".to_owned());
+    everything.limit = Some(1);
+    let (flags, arguments) = everything.burst_modes();
+    expectations.expect(
+        "every rendered flag is advertised",
+        flags
+            .chars()
+            .filter(|letter| *letter != '+')
+            .all(|letter| letters.contains(&letter)),
+    );
+    expectations.expect(
+        "the key and limit travel as arguments in that order",
+        arguments == vec!["sekrit".to_owned(), "1".to_owned()],
+    );
+
+    let mut huge = Channel::new("#test");
+    huge.limit = Some(usize::MAX);
+    expectations.expect(
+        "the largest limit renders in full",
+        huge.mode_string() == format!("+ntl {}", usize::MAX),
+    );
+    let mut zero = Channel::new("#test");
+    zero.limit = Some(0);
+    expectations.expect(
+        "a zero limit renders as zero",
+        zero.mode_string() == "+ntl 0",
+    );
+
+    expectations.finish(
+        "C-MODES",
+        "Channel modes render exactly what the gate enforces",
+        "defaults, per-flag rendering, key/limit arguments and CHANMODES membership".to_owned(),
+    )
+}
+
+/// Build a join request for a client on a known host.
+fn joiner<'a>(
+    id: ircd::server::ClientId,
+    key: &'a str,
+    account: Option<&'a str>,
+) -> JoinRequest<'a> {
+    JoinRequest {
+        id,
+        nick: "alice",
+        user: "user",
+        host: "host.example",
+        account,
+        key,
+    }
+}
+
+/// A channel holding `count` members.
+fn joined(count: u64) -> Channel {
+    let mut channel = Channel::new("#test");
+    for id in 0..count {
+        channel.add(id);
+    }
+    channel
+}
+
+/// The join gate: `+l`, `+k`, `+i`, `+R` and `+b`, and the order they report in.
+fn join_gate() -> Check {
+    let now = Instant::now();
+    let mut expectations = Expectations::default();
+
+    let mut full = joined(2);
+    full.limit = Some(2);
+    expectations.expect(
+        "a channel at its limit refuses",
+        full.join_check(&joiner(3, "", None), now) == Err(JoinRefusal::Full),
+    );
+    full.limit = Some(3);
+    expectations.expect(
+        "a channel below its limit admits",
+        full.join_check(&joiner(3, "", None), now).is_ok(),
+    );
+    let mut zero_limit = Channel::new("#test");
+    zero_limit.limit = Some(0);
+    expectations.expect(
+        "a zero limit refuses everyone",
+        zero_limit.join_check(&joiner(1, "", None), now) == Err(JoinRefusal::Full),
+    );
+
+    let mut keyed = Channel::new("#test");
+    keyed.key = Some("sekrit".to_owned());
+    expectations.expect(
+        "a wrong key is refused",
+        keyed.join_check(&joiner(1, "wrong", None), now) == Err(JoinRefusal::BadKey),
+    );
+    expectations.expect(
+        "an absent key is refused when one is set",
+        keyed.join_check(&joiner(1, "", None), now) == Err(JoinRefusal::BadKey),
+    );
+    expectations.expect(
+        "the right key is admitted",
+        keyed.join_check(&joiner(1, "sekrit", None), now).is_ok(),
+    );
+
+    let mut empty_key = Channel::new("#test");
+    empty_key.key = Some(String::new());
+    expectations.expect(
+        "an empty key accepts an empty offer",
+        empty_key.join_check(&joiner(1, "", None), now).is_ok(),
+    );
+    expectations.expect(
+        "an empty key rejects a non-empty offer",
+        empty_key.join_check(&joiner(1, "x", None), now) == Err(JoinRefusal::BadKey),
+    );
+
+    let mut invited_only = Channel::new("#test");
+    invited_only.invite_only = true;
+    expectations.expect(
+        "an uninvited join is refused",
+        invited_only.join_check(&joiner(1, "", None), now) == Err(JoinRefusal::InviteOnly),
+    );
+    invited_only.invite(1, "oper", Duration::from_secs(60));
+    expectations.expect(
+        "an invited join is admitted",
+        invited_only.join_check(&joiner(1, "", None), now).is_ok(),
+    );
+    invited_only.invites.insert(
+        2,
+        Invite {
+            by: "oper".to_owned(),
+            expires: now,
+            warned: false,
+        },
+    );
+    expectations.expect(
+        "an invitation expiring exactly now is refused",
+        invited_only.join_check(&joiner(2, "", None), now) == Err(JoinRefusal::InviteOnly),
+    );
+    invited_only.invites.insert(
+        3,
+        Invite {
+            by: "oper".to_owned(),
+            expires: now - Duration::from_secs(1),
+            warned: false,
+        },
+    );
+    expectations.expect(
+        "a lapsed invitation left in the map is refused",
+        invited_only.join_check(&joiner(3, "", None), now) == Err(JoinRefusal::InviteOnly),
+    );
+
+    let mut account_only = Channel::new("#test");
+    account_only.account_only = true;
+    expectations.expect(
+        "+R refuses an unauthenticated client",
+        account_only.join_check(&joiner(1, "", None), now) == Err(JoinRefusal::AccountOnly),
+    );
+    expectations.expect(
+        "+R admits an authenticated client",
+        account_only
+            .join_check(&joiner(1, "", Some("alice")), now)
+            .is_ok(),
+    );
+
+    let mut banned = Channel::new("#test");
+    banned.bans.push(BanEntry {
+        mask: "*!*@host.example".to_owned(),
+        set_by: "oper".to_owned(),
+        set_at: 0,
+    });
+    expectations.expect(
+        "a matching ban is refused",
+        banned.join_check(&joiner(1, "", None), now) == Err(JoinRefusal::Banned),
+    );
+    banned.exceptions.push(BanEntry {
+        mask: "$a:alice".to_owned(),
+        set_by: "oper".to_owned(),
+        set_at: 0,
+    });
+    expectations.expect(
+        "an account exception lifts the ban",
+        banned
+            .join_check(&joiner(1, "", Some("alice")), now)
+            .is_ok(),
+    );
+
+    let mut ordered = joined(1);
+    ordered.limit = Some(1);
+    ordered.key = Some("sekrit".to_owned());
+    expectations.expect(
+        "+l is reported before +k",
+        ordered.join_check(&joiner(2, "wrong", None), now) == Err(JoinRefusal::Full),
+    );
+    ordered.limit = None;
+    ordered.invite_only = true;
+    expectations.expect(
+        "+k is reported before +i",
+        ordered.join_check(&joiner(2, "wrong", None), now) == Err(JoinRefusal::BadKey),
+    );
+    ordered.key = None;
+    ordered.account_only = true;
+    expectations.expect(
+        "+i is reported before +R",
+        ordered.join_check(&joiner(2, "", None), now) == Err(JoinRefusal::InviteOnly),
+    );
+
+    expectations.finish(
+        "C-JOIN",
+        "The join gate refuses on every channel mode, in a fixed order",
+        "+l at and below the limit, +k wrong/absent/empty, +i fresh/expiring/lapsed, +R, +b with +e"
+            .to_owned(),
+    )
+}
+
+/// Invitation lifetime, warnings and consumption.
+fn invite_expiry() -> Check {
+    let now = Instant::now();
+    let mut expectations = Expectations::default();
+    let mut channel = Channel::new("#test");
+    channel.invites.insert(
+        1,
+        Invite {
+            by: "oper".to_owned(),
+            expires: now + Duration::from_secs(60),
+            warned: false,
+        },
+    );
+    expectations.expect(
+        "an invitation is valid one second before expiry",
+        channel.invited_at(1, now + Duration::from_secs(59)),
+    );
+    expectations.expect(
+        "the expiry instant is exclusive",
+        !channel.invited_at(1, now + Duration::from_secs(60)),
+    );
+    expectations.expect(
+        "an uninvited client holds nothing",
+        !channel.invited_at(2, now),
+    );
+
+    let warn = Duration::from_secs(10);
+    expectations.expect(
+        "outside the warning window nothing is reported",
+        channel
+            .sweep_invites(now + Duration::from_secs(49), warn)
+            .is_empty(),
+    );
+    let due = channel.sweep_invites(now + Duration::from_secs(50), warn);
+    expectations.expect(
+        "the warning fires once at the window boundary",
+        due.len() == 1 && !due[0].expired && due[0].seconds_left == 10 && due[0].by == "oper",
+    );
+    expectations.expect(
+        "the warning is not repeated",
+        channel
+            .sweep_invites(now + Duration::from_secs(51), warn)
+            .is_empty(),
+    );
+    expectations.expect(
+        "a warning does not revoke the invitation",
+        channel.invited_at(1, now + Duration::from_secs(51)),
+    );
+    let due = channel.sweep_invites(now + Duration::from_secs(60), warn);
+    expectations.expect(
+        "expiry is reported and the grant removed",
+        due.len() == 1 && due[0].expired && due[0].seconds_left == 0 && channel.invites.is_empty(),
+    );
+    expectations.expect(
+        "an expired grant no longer admits its invitee",
+        !channel.invited_at(1, now + Duration::from_secs(60)),
+    );
+
+    let mut reinvited = Channel::new("#test");
+    reinvited.invite(3, "oper", Duration::from_secs(10));
+    reinvited.invite(3, "oper", Duration::from_secs(60));
+    expectations.expect(
+        "a second invitation extends the lifetime",
+        reinvited.invited_at(3, now + Duration::from_secs(30)),
+    );
+    reinvited.add(3);
+    expectations.expect(
+        "joining consumes the invitation",
+        !reinvited.invites.contains_key(&3),
+    );
+    let mut withdrawn = Channel::new("#test");
+    withdrawn.invite(4, "oper", Duration::from_secs(60));
+    withdrawn.withdraw_invite(4);
+    expectations.expect(
+        "withdrawing clears the invitation",
+        !withdrawn.invited(4) && withdrawn.invites.is_empty(),
+    );
+
+    let mut disabled = Channel::new("#test");
+    disabled.invites.insert(
+        5,
+        Invite {
+            by: "oper".to_owned(),
+            expires: now + Duration::from_secs(20),
+            warned: false,
+        },
+    );
+    expectations.expect(
+        "a zero warning window reports nothing early",
+        disabled.sweep_invites(now, Duration::ZERO).is_empty(),
+    );
+    let due = disabled.sweep_invites(now + Duration::from_secs(20), Duration::ZERO);
+    expectations.expect(
+        "a zero warning window still reports expiry",
+        due.len() == 1 && due[0].expired,
+    );
+
+    let mut impatient = Channel::new("#test");
+    impatient.invites.insert(
+        6,
+        Invite {
+            by: "oper".to_owned(),
+            expires: now + Duration::from_secs(5),
+            warned: false,
+        },
+    );
+    let due = impatient.sweep_invites(now, Duration::from_secs(30));
+    expectations.expect(
+        "a window longer than the lifetime warns immediately",
+        due.len() == 1 && !due[0].expired && due[0].seconds_left == 5,
+    );
+
+    let mut selective = Channel::new("#test");
+    selective.invites.insert(
+        7,
+        Invite {
+            by: "oper".to_owned(),
+            expires: now + Duration::from_secs(8),
+            warned: false,
+        },
+    );
+    selective.invites.insert(
+        8,
+        Invite {
+            by: "oper".to_owned(),
+            expires: now + Duration::from_secs(300),
+            warned: false,
+        },
+    );
+    let due = selective.sweep_invites(now, warn);
+    expectations.expect(
+        "a sweep reports only the invitation in its window",
+        due.len() == 1 && due[0].invitee == 7 && selective.invites.contains_key(&8),
+    );
+
+    let mut truncated = Channel::new("#test");
+    truncated.invites.insert(
+        9,
+        Invite {
+            by: "oper".to_owned(),
+            expires: now + Duration::from_millis(10_900),
+            warned: false,
+        },
+    );
+    let due = truncated.sweep_invites(now + Duration::from_secs(5), Duration::from_secs(6));
+    expectations.expect(
+        "remaining whole seconds are truncated",
+        due.len() == 1 && due[0].seconds_left == 5,
+    );
+
+    expectations.finish(
+        "C-INVITE",
+        "Invitations expire at their deadline and warn once before it",
+        "boundary at expires, one warning, expiry removal, re-invite, consumption, withdrawal"
+            .to_owned(),
+    )
+}
+
+/// The configuration around invitation lifetimes.
+fn invite_config() -> Check {
+    let mut expectations = Expectations::default();
+    let mut config = config_with_accounts(Vec::new());
+    config.server.invite_expiry_secs = 0;
+    expectations.expect("a zero lifetime is rejected", config.validate().is_err());
+    let message = config
+        .validate()
+        .err()
+        .map(|error| error.to_string())
+        .unwrap_or_default();
+    expectations.expect(
+        "the error names invite_expiry_secs",
+        message.contains("invite_expiry"),
+    );
+    config.server.invite_expiry_secs = 1;
+    expectations.expect(
+        "the shortest lifetime is accepted",
+        config.validate().is_ok(),
+    );
+    config.server.invite_warning_secs = 600;
+    expectations.expect(
+        "a warning longer than the lifetime is allowed",
+        config.validate().is_ok(),
+    );
+    expectations.finish(
+        "C-INVITE-CONFIG",
+        "Invitation lifetimes are validated at start-up",
+        "zero rejected, one second accepted, an over-long warning window allowed".to_owned(),
+    )
 }
 
 /// Every C0 control byte, plus `DEL`, in a middle and a trailing parameter.
@@ -1067,6 +1539,18 @@ mod tests {
         assert_eq!(points.len(), 3);
         assert!(points.iter().all(|point| point.ns_per_byte > 0.0));
         assert_eq!(probes().len(), 9);
+    }
+
+    #[test]
+    fn channel_checks_pass() {
+        for check in [
+            channel_modes(),
+            join_gate(),
+            invite_expiry(),
+            invite_config(),
+        ] {
+            assert!(check.passed, "{}: {}", check.id, check.detail);
+        }
     }
 
     #[test]
