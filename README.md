@@ -188,6 +188,26 @@ cargo bench --bench compression # zlib vs zstd vs brotli vs LZ4
 Benchmarks run single-threaded on purpose. Results are recorded in
 `docs/BENCHMARKS.md` and `docs/COMPRESSION.md`.
 
+## Audit reports
+
+Speed and security reports are generated from the source tree, not written by
+hand:
+
+```bash
+cargo run --release --bin audit -- report      # writes reports/
+cargo run --release --bin audit -- markers     # list every MARK annotation
+cargo run --release --bin audit -- speed       # measurement table
+cargo run --release --bin audit -- security    # checks plus parser soak
+```
+
+Code carries `// MARK: category: severity: ID: text` annotations on the paths
+worth reviewing, and the generator collects them into a register with source
+links alongside measured numbers: hot-path timings, a seeded soak of the
+parser, boundary checks on the length and tag ceilings, and wildcard cost
+scaling. `report` exits non-zero on a malformed or duplicate marker or a failed
+check, so it works as a gate. See `docs/AUDIT.md` for the grammar and what each
+report covers.
+
 ## Limitations
 
 Documented in `docs/COMPLIANCE.md`: links are multi-hop on a spanning tree with

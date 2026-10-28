@@ -1,0 +1,1075 @@
+{
+  "environment": {
+    "arch": "x86_64",
+    "commit": "6fb5905",
+    "cores": 8,
+    "generated": "2026-10-28T19:17:41.598005472Z",
+    "os": "linux",
+    "profile": "release",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "target": "x86_64-linux"
+  },
+  "inventory": {
+    "benches": {
+      "files": [
+        {
+          "allows": 0,
+          "code_lines": 194,
+          "debug_prints": 8,
+          "expects": 6,
+          "lines": 218,
+          "panics": 0,
+          "path": "benches/compression.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 26,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 36,
+          "panics": 0,
+          "path": "benches/dispatch.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 114,
+          "debug_prints": 0,
+          "expects": 2,
+          "lines": 150,
+          "panics": 0,
+          "path": "benches/fanout.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 86,
+          "debug_prints": 0,
+          "expects": 2,
+          "lines": 99,
+          "panics": 0,
+          "path": "benches/protocol.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        }
+      ],
+      "name": "benches",
+      "totals": {
+        "allows": 0,
+        "code_lines": 420,
+        "debug_prints": 8,
+        "expects": 10,
+        "files": 4,
+        "lines": 503,
+        "panics": 0,
+        "stubs": 0,
+        "unsafe_blocks": 0,
+        "unwraps": 0
+      }
+    },
+    "library": {
+      "files": [
+        {
+          "allows": 0,
+          "code_lines": 300,
+          "debug_prints": 0,
+          "expects": 1,
+          "lines": 379,
+          "panics": 0,
+          "path": "src/auth.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 109,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 158,
+          "panics": 0,
+          "path": "src/casemap.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 443,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 496,
+          "panics": 0,
+          "path": "src/commands/admin.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 913,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 974,
+          "panics": 0,
+          "path": "src/commands/channel.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 492,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 537,
+          "panics": 0,
+          "path": "src/commands/messaging.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 227,
+          "debug_prints": 0,
+          "expects": 1,
+          "lines": 311,
+          "panics": 1,
+          "path": "src/commands/mod.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 550,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 630,
+          "panics": 0,
+          "path": "src/commands/registration.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 616,
+          "debug_prints": 0,
+          "expects": 1,
+          "lines": 818,
+          "panics": 0,
+          "path": "src/config.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 93,
+          "debug_prints": 0,
+          "expects": 4,
+          "lines": 122,
+          "panics": 0,
+          "path": "src/daemon.rs",
+          "stubs": 0,
+          "unsafe_blocks": 3,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 34,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 58,
+          "panics": 0,
+          "path": "src/error.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 356,
+          "debug_prints": 0,
+          "expects": 12,
+          "lines": 434,
+          "panics": 0,
+          "path": "src/hooks.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 13,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 17,
+          "panics": 0,
+          "path": "src/lib.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 359,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 438,
+          "panics": 0,
+          "path": "src/logging.rs",
+          "stubs": 0,
+          "unsafe_blocks": 3,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 80,
+          "debug_prints": 3,
+          "expects": 0,
+          "lines": 106,
+          "panics": 0,
+          "path": "src/main.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 300,
+          "debug_prints": 0,
+          "expects": 9,
+          "lines": 384,
+          "panics": 0,
+          "path": "src/net/compress.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 318,
+          "debug_prints": 0,
+          "expects": 10,
+          "lines": 368,
+          "panics": 0,
+          "path": "src/net/connection.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 192,
+          "debug_prints": 0,
+          "expects": 2,
+          "lines": 235,
+          "panics": 0,
+          "path": "src/net/dialer.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 253,
+          "debug_prints": 0,
+          "expects": 1,
+          "lines": 299,
+          "panics": 0,
+          "path": "src/net/mod.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 163,
+          "debug_prints": 0,
+          "expects": 6,
+          "lines": 215,
+          "panics": 0,
+          "path": "src/net/tls.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 402,
+          "debug_prints": 0,
+          "expects": 5,
+          "lines": 520,
+          "panics": 0,
+          "path": "src/protocol/message.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 5,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 8,
+          "panics": 0,
+          "path": "src/protocol/mod.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 154,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 171,
+          "panics": 0,
+          "path": "src/protocol/numeric.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 161,
+          "debug_prints": 0,
+          "expects": 1,
+          "lines": 238,
+          "panics": 0,
+          "path": "src/script/mod.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 351,
+          "debug_prints": 0,
+          "expects": 6,
+          "lines": 432,
+          "panics": 0,
+          "path": "src/script/rules.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 427,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 564,
+          "panics": 0,
+          "path": "src/server/channel.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 512,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 712,
+          "panics": 0,
+          "path": "src/server/client.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 1397,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 1637,
+          "panics": 0,
+          "path": "src/server/link.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 929,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 1173,
+          "panics": 0,
+          "path": "src/server/mod.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 145,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 186,
+          "panics": 0,
+          "path": "src/util.rs",
+          "stubs": 0,
+          "unsafe_blocks": 2,
+          "unwraps": 0
+        }
+      ],
+      "name": "src",
+      "totals": {
+        "allows": 0,
+        "code_lines": 10294,
+        "debug_prints": 3,
+        "expects": 59,
+        "files": 29,
+        "lines": 12620,
+        "panics": 1,
+        "stubs": 0,
+        "unsafe_blocks": 8,
+        "unwraps": 0
+      }
+    },
+    "tests": {
+      "files": [
+        {
+          "allows": 0,
+          "code_lines": 724,
+          "debug_prints": 0,
+          "expects": 47,
+          "lines": 838,
+          "panics": 7,
+          "path": "tests/dialer.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 882,
+          "debug_prints": 0,
+          "expects": 107,
+          "lines": 1037,
+          "panics": 5,
+          "path": "tests/linking.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 767,
+          "debug_prints": 0,
+          "expects": 131,
+          "lines": 931,
+          "panics": 5,
+          "path": "tests/network.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 117,
+          "debug_prints": 0,
+          "expects": 13,
+          "lines": 144,
+          "panics": 2,
+          "path": "tests/scripting.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 543,
+          "debug_prints": 0,
+          "expects": 60,
+          "lines": 627,
+          "panics": 5,
+          "path": "tests/split.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 224,
+          "debug_prints": 0,
+          "expects": 16,
+          "lines": 266,
+          "panics": 2,
+          "path": "tests/tls.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        }
+      ],
+      "name": "tests",
+      "totals": {
+        "allows": 0,
+        "code_lines": 3257,
+        "debug_prints": 0,
+        "expects": 374,
+        "files": 6,
+        "lines": 3843,
+        "panics": 26,
+        "stubs": 0,
+        "unsafe_blocks": 0,
+        "unwraps": 0
+      }
+    },
+    "tools": {
+      "files": [
+        {
+          "allows": 2,
+          "code_lines": 234,
+          "debug_prints": 4,
+          "expects": 2,
+          "lines": 308,
+          "panics": 1,
+          "path": "src/bin/audit/inventory.rs",
+          "stubs": 2,
+          "unsafe_blocks": 5,
+          "unwraps": 6
+        },
+        {
+          "allows": 0,
+          "code_lines": 251,
+          "debug_prints": 14,
+          "expects": 0,
+          "lines": 301,
+          "panics": 0,
+          "path": "src/bin/audit/main.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 311,
+          "debug_prints": 0,
+          "expects": 1,
+          "lines": 401,
+          "panics": 0,
+          "path": "src/bin/audit/markers.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 620,
+          "debug_prints": 0,
+          "expects": 1,
+          "lines": 693,
+          "panics": 0,
+          "path": "src/bin/audit/report.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 550,
+          "debug_prints": 0,
+          "expects": 1,
+          "lines": 675,
+          "panics": 0,
+          "path": "src/bin/audit/security.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        },
+        {
+          "allows": 0,
+          "code_lines": 258,
+          "debug_prints": 0,
+          "expects": 0,
+          "lines": 326,
+          "panics": 0,
+          "path": "src/bin/audit/speed.rs",
+          "stubs": 0,
+          "unsafe_blocks": 0,
+          "unwraps": 0
+        }
+      ],
+      "name": "src/bin",
+      "totals": {
+        "allows": 2,
+        "code_lines": 2224,
+        "debug_prints": 18,
+        "expects": 5,
+        "files": 6,
+        "lines": 2704,
+        "panics": 1,
+        "stubs": 2,
+        "unsafe_blocks": 5,
+        "unwraps": 6
+      }
+    }
+  },
+  "markers": [
+    {
+      "category": "security",
+      "file": "src/auth.rs",
+      "id": "SEC-AUTH-001",
+      "line": 69,
+      "severity": "critical",
+      "text": "all credential failures are indistinguishable."
+    },
+    {
+      "category": "security",
+      "file": "src/protocol/message.rs",
+      "id": "SEC-CONTROL-001",
+      "line": 103,
+      "severity": "critical",
+      "text": "rejects C0/DEL before copying any field."
+    },
+    {
+      "category": "security",
+      "file": "src/server/link.rs",
+      "id": "SEC-LINK-001",
+      "line": 201,
+      "severity": "critical",
+      "text": "a link is refused unless the configured password matches."
+    },
+    {
+      "category": "security",
+      "file": "src/server/channel.rs",
+      "id": "SEC-BAN-001",
+      "line": 295,
+      "severity": "high",
+      "text": "exceptions override bans, including `$a:` entries."
+    },
+    {
+      "category": "security",
+      "file": "src/net/connection.rs",
+      "id": "SEC-BOMB-001",
+      "line": 280,
+      "severity": "high",
+      "text": "frame sizes are checked before allocating."
+    },
+    {
+      "category": "security",
+      "file": "src/util.rs",
+      "id": "SEC-CT-001",
+      "line": 129,
+      "severity": "high",
+      "text": "digest comparison cannot short-circuit."
+    },
+    {
+      "category": "security",
+      "file": "src/protocol/message.rs",
+      "id": "SEC-TAG-001",
+      "line": 182,
+      "severity": "high",
+      "text": "relays only `+` tags and allowlisted vendor tags."
+    },
+    {
+      "category": "security",
+      "file": "src/util.rs",
+      "id": "SEC-WILD-001",
+      "line": 37,
+      "severity": "high",
+      "text": "one backtrack point bounds hostile ban masks."
+    },
+    {
+      "category": "security",
+      "file": "src/protocol/message.rs",
+      "id": "SEC-LEN-001",
+      "line": 260,
+      "severity": "medium",
+      "text": "clamps the ceiling so output stays terminated."
+    },
+    {
+      "category": "safety",
+      "file": "src/daemon.rs",
+      "id": "SAF-FORK-001",
+      "line": 22,
+      "severity": "high",
+      "text": "runs before any thread or runtime exists."
+    },
+    {
+      "category": "safety",
+      "file": "src/util.rs",
+      "id": "SAF-FFI-001",
+      "line": 85,
+      "severity": "medium",
+      "text": "buffer and length arguments match by construction."
+    },
+    {
+      "category": "safety",
+      "file": "src/logging.rs",
+      "id": "SAF-WINLOG-001",
+      "line": 325,
+      "severity": "medium",
+      "text": "API-owned handles, freed exactly once."
+    },
+    {
+      "category": "speed",
+      "file": "src/commands/mod.rs",
+      "id": "SPD-DISPATCH-001",
+      "line": 76,
+      "severity": "high",
+      "text": "match tree beats hashing (benches/dispatch.rs)."
+    },
+    {
+      "category": "speed",
+      "file": "src/server/channel.rs",
+      "id": "SPD-BAN-001",
+      "line": 73,
+      "severity": "medium",
+      "text": "caller builds both masks once per check."
+    },
+    {
+      "category": "speed",
+      "file": "src/protocol/message.rs",
+      "id": "SPD-SER-001",
+      "line": 224,
+      "severity": "medium",
+      "text": "single pass into the caller's buffer."
+    },
+    {
+      "category": "speed",
+      "file": "src/casemap.rs",
+      "id": "SPD-CASEMAP-001",
+      "line": 81,
+      "severity": "low",
+      "text": "folds byte-wise, no allocation on the hot path."
+    },
+    {
+      "category": "protocol",
+      "file": "src/protocol/message.rs",
+      "id": "PROTO-PARAMS-001",
+      "line": 11,
+      "severity": "medium",
+      "text": "15-parameter ceiling from RFC 1459 section 2.3.1."
+    },
+    {
+      "category": "policy",
+      "file": "src/script/rules.rs",
+      "id": "POL-RULES-001",
+      "line": 8,
+      "severity": "high",
+      "text": "rules run before scripts and a deny is final."
+    }
+  ],
+  "problems": [],
+  "security": {
+    "checks": [
+      {
+        "detail": "165 vectors, all rejected with InvalidControl",
+        "id": "C-CTRL",
+        "name": "Control characters are rejected at the parse edge",
+        "passed": true
+      },
+      {
+        "detail": "boundaries at 512 bytes, tag budget 4096 bytes",
+        "id": "C-LEN",
+        "name": "Line, tag and serialisation ceilings hold at the boundary",
+        "passed": true
+      },
+      {
+        "detail": "15 accepted, 16 rejected, trailing parameter preserved",
+        "id": "C-PARAM",
+        "name": "Parameter count and trailing form follow RFC 1459",
+        "passed": true
+      },
+      {
+        "detail": "server tags blocked, allowlist honoured, flood clipped to 3008 bytes",
+        "id": "C-TAG",
+        "name": "Only client tags are relayed, inside the size budget",
+        "passed": true
+      },
+      {
+        "detail": "50000 lines, 26116 accepted, 23884 rejected, 0 invariant failures",
+        "id": "C-SOAK",
+        "name": "Generated input never panics and always yields a decision",
+        "passed": true
+      },
+      {
+        "detail": "1024 B: 1.83 ns/B, 10240 B: 1.79 ns/B, 102400 B: 1.78 ns/B",
+        "id": "C-WILD",
+        "name": "Adversarial wildcard matching stays linear in the input",
+        "passed": true
+      }
+    ],
+    "probes": [
+      {
+        "median_ns": 7687.5561,
+        "name": "constant_time_eq/equal"
+      },
+      {
+        "median_ns": 7680.9821,
+        "name": "constant_time_eq/differs_first"
+      },
+      {
+        "median_ns": 7677.18105,
+        "name": "constant_time_eq/differs_last"
+      },
+      {
+        "median_ns": 53.4913,
+        "name": "str_eq/equal"
+      },
+      {
+        "median_ns": 3.4134,
+        "name": "str_eq/differs_first"
+      },
+      {
+        "median_ns": 54.86335,
+        "name": "str_eq/differs_last"
+      }
+    ],
+    "scaling": [
+      {
+        "bytes": 1024,
+        "ns_per_byte": 1.8262208781362008,
+        "ns_per_call": 1870.0501792114696
+      },
+      {
+        "bytes": 10240,
+        "ns_per_byte": 1.791931590544872,
+        "ns_per_call": 18349.37948717949
+      },
+      {
+        "bytes": 102400,
+        "ns_per_byte": 1.777160773026316,
+        "ns_per_call": 181981.26315789475
+      }
+    ],
+    "soak": {
+      "accepted": 26116,
+      "failure_count": 0,
+      "failures": [],
+      "histogram": [
+        [
+          "control character",
+          17188
+        ],
+        [
+          "too long",
+          2525
+        ],
+        [
+          "too many parameters",
+          2482
+        ],
+        [
+          "invalid command",
+          1097
+        ],
+        [
+          "missing command",
+          498
+        ],
+        [
+          "empty",
+          94
+        ]
+      ],
+      "invariants_checked": 26116,
+      "iterations": 50000,
+      "rejected": 23884,
+      "seed": 1592642302
+    }
+  },
+  "speed": {
+    "cases": [
+      {
+        "name": "parse/plain",
+        "note": "one prefix, two parameters; allocates each present field",
+        "sample": {
+          "cv_pct": 0.8450669274369684,
+          "iterations": 20000,
+          "max_ns": 153.7518,
+          "median_ns": 150.72915,
+          "min_ns": 150.0629,
+          "ops_per_second": 6634416.766763429,
+          "rounds": 7
+        }
+      },
+      {
+        "name": "parse/tagged",
+        "note": "three IRCv3 tags plus the same body as `parse/plain`",
+        "sample": {
+          "cv_pct": 0.1621927469104106,
+          "iterations": 20000,
+          "max_ns": 473.22535,
+          "median_ns": 471.90035,
+          "min_ns": 471.184,
+          "ops_per_second": 2119091.456490761,
+          "rounds": 7
+        }
+      },
+      {
+        "name": "parse/reject_control",
+        "note": "the injection guard: cost of rejecting a line with one control byte",
+        "sample": {
+          "cv_pct": 4.7260018202444405,
+          "iterations": 20000,
+          "max_ns": 12.0441,
+          "median_ns": 11.50355,
+          "min_ns": 10.80925,
+          "ops_per_second": 86929686.92273255,
+          "rounds": 7
+        }
+      },
+      {
+        "name": "serialise/untagged",
+        "note": "reuses one buffer, so this is the encode cost without allocation",
+        "sample": {
+          "cv_pct": 1.2904151864587214,
+          "iterations": 20000,
+          "max_ns": 27.4159,
+          "median_ns": 26.79375,
+          "min_ns": 26.3955,
+          "ops_per_second": 37322136.69232564,
+          "rounds": 7
+        }
+      },
+      {
+        "name": "serialise/tagged",
+        "note": "three tags including one client tag; same reused-buffer method",
+        "sample": {
+          "cv_pct": 1.065562622950426,
+          "iterations": 20000,
+          "max_ns": 145.41965,
+          "median_ns": 141.4086,
+          "min_ns": 140.6287,
+          "ops_per_second": 7071705.681266909,
+          "rounds": 7
+        }
+      },
+      {
+        "name": "casemap/fold",
+        "note": "RFC 1459 fold of a 24-byte nickname into a fresh String",
+        "sample": {
+          "cv_pct": 5.136564080953353,
+          "iterations": 20000,
+          "max_ns": 47.4014,
+          "median_ns": 45.08405,
+          "min_ns": 41.7127,
+          "ops_per_second": 22180793.429161757,
+          "rounds": 7
+        }
+      },
+      {
+        "name": "casemap/eq",
+        "note": "case-insensitive comparison with no allocation",
+        "sample": {
+          "cv_pct": 2.6211239412499747,
+          "iterations": 20000,
+          "max_ns": 19.2947,
+          "median_ns": 18.8238,
+          "min_ns": 17.90005,
+          "ops_per_second": 53124236.339102626,
+          "rounds": 7
+        }
+      },
+      {
+        "name": "wildcard/hostmask",
+        "note": "`*!*@*.example.org` against a matching mask",
+        "sample": {
+          "cv_pct": 0.7170293728157967,
+          "iterations": 20000,
+          "max_ns": 45.96875,
+          "median_ns": 45.3535,
+          "min_ns": 45.04095,
+          "ops_per_second": 22049014.96025665,
+          "rounds": 7
+        }
+      },
+      {
+        "name": "wildcard/miss",
+        "note": "the same mask against a non-matching host, so the scan runs to the end",
+        "sample": {
+          "cv_pct": 0.7237587484997019,
+          "iterations": 20000,
+          "max_ns": 65.2644,
+          "median_ns": 64.2239,
+          "min_ns": 63.9058,
+          "ops_per_second": 15570527.482759533,
+          "rounds": 7
+        }
+      },
+      {
+        "name": "ban/match_16th",
+        "note": "16 entries, match on the last one; the derived masks are built once",
+        "sample": {
+          "cv_pct": 0.8820176276226532,
+          "iterations": 20000,
+          "max_ns": 1841.8517,
+          "median_ns": 1831.3039,
+          "min_ns": 1799.084,
+          "ops_per_second": 546059.0129251622,
+          "rounds": 7
+        }
+      },
+      {
+        "name": "dispatch/hit",
+        "note": "command table lookup for an existing verb",
+        "sample": {
+          "cv_pct": 4.3776258915002,
+          "iterations": 20000,
+          "max_ns": 2.4867,
+          "median_ns": 2.48565,
+          "min_ns": 2.1801,
+          "ops_per_second": 402309255.1244141,
+          "rounds": 7
+        }
+      },
+      {
+        "name": "dispatch/miss",
+        "note": "lookup of a verb that does not exist",
+        "sample": {
+          "cv_pct": 0.04223363154355188,
+          "iterations": 20000,
+          "max_ns": 1.871,
+          "median_ns": 1.869,
+          "min_ns": 1.8685,
+          "ops_per_second": 535045478.8657036,
+          "rounds": 7
+        }
+      },
+      {
+        "name": "validate/nickname",
+        "note": "RFC 1459 nickname validation, one pass over the bytes",
+        "sample": {
+          "cv_pct": 2.908029697333497,
+          "iterations": 20000,
+          "max_ns": 18.0268,
+          "median_ns": 17.12155,
+          "min_ns": 16.6657,
+          "ops_per_second": 58405927.03347536,
+          "rounds": 7
+        }
+      },
+      {
+        "name": "format/numeric",
+        "note": "numeric reply rendered through Display, which allocates",
+        "sample": {
+          "cv_pct": 1.3186566864565317,
+          "iterations": 20000,
+          "max_ns": 50.89600000000001,
+          "median_ns": 49.81490000000001,
+          "min_ns": 48.99785,
+          "ops_per_second": 20074315.114554077,
+          "rounds": 7
+        }
+      }
+    ],
+    "iterations": 20000,
+    "rounds": 7
+  }
+}

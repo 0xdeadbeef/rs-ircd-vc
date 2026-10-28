@@ -277,6 +277,7 @@ impl Inbound {
         let mut header = [0u8; HEADER_LEN];
         self.reader.read_exact(&mut header).await?;
         let (declared, compressed) = parse_header(&header);
+        // MARK: security: high: SEC-BOMB-001: frame sizes are checked before allocating.
         if declared > self.max_decompressed || compressed > MAX_FRAME {
             return Err(std::io::Error::new(
                 ErrorKind::InvalidData,

@@ -198,6 +198,7 @@ pub async fn handle(server: &Arc<Server>, link: &Arc<ClientHandle>, message: &Me
     }
 }
 
+// MARK: security: critical: SEC-LINK-001: a link is refused unless the configured password matches.
 fn handshake(server: &Arc<Server>, link: &Arc<ClientHandle>, message: &Message) {
     match message.command.as_str() {
         "PASS" => {

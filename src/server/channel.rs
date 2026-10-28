@@ -70,6 +70,7 @@ impl BanEntry {
     /// Same test as [`BanEntry::matches`], with the derived masks supplied by
     /// the caller.
     ///
+    // MARK: speed: medium: SPD-BAN-001: caller builds both masks once per check.
     /// A channel with `n` bans used to build `2n` strings for one check. The
     /// caller now builds both masks once and every entry compares against the
     /// same slices, which matters on `JOIN` and `PRIVMSG` paths where the list
@@ -291,6 +292,7 @@ impl Channel {
     ///
     /// Exceptions are checked first, which is what makes `+e` an escape hatch
     /// from a wide ban without having to split the ban mask.
+    // MARK: security: high: SEC-BAN-001: exceptions override bans, including `$a:` entries.
     pub fn is_banned(&self, nick: &str, user: &str, host: &str, account: Option<&str>) -> bool {
         if self.bans.is_empty() {
             return false;

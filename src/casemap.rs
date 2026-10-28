@@ -78,6 +78,7 @@ impl CaseMapping {
         }
     }
 
+    // MARK: speed: low: SPD-CASEMAP-001: folds byte-wise, no allocation on the hot path.
     /// Case-insensitive equality under this mapping without allocating.
     pub fn eq(self, left: &str, right: &str) -> bool {
         let (mut l, mut r) = (left.bytes(), right.bytes());

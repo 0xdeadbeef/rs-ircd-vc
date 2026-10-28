@@ -8,6 +8,7 @@
 
 use std::fmt;
 
+// MARK: protocol: medium: PROTO-PARAMS-001: 15-parameter ceiling from RFC 1459 section 2.3.1.
 /// Maximum number of parameters a single message may carry (RFC 1459 §2.3.1).
 pub const MAX_PARAMS: usize = 15;
 
@@ -99,6 +100,7 @@ impl Message {
     /// malformed command or tag, or carries too many parameters.
     pub fn parse(raw: &str, max_len: usize) -> Result<Self, ParseError> {
         let line = raw.trim_end_matches(['\r', '\n', '\0']);
+        // MARK: security: critical: SEC-CONTROL-001: rejects C0/DEL before copying any field.
         // RFC 1459 §2.3 forbids NUL, CR and LF inside a message, and every
         // implementation treats the other C0 bytes as line noise. Rejecting
         // them at the edge is what stops a client from injecting parameters or
@@ -177,6 +179,7 @@ impl Message {
         Ok(message)
     }
 
+    // MARK: security: high: SEC-TAG-001: relays only `+` tags and allowlisted vendor tags.
     /// Client tags this message is allowed to relay.
     ///
     /// `+`-prefixed keys are always accepted; a vendor tag without the prefix is
@@ -218,6 +221,7 @@ impl Message {
         self.params.last().map(String::as_str)
     }
 
+    // MARK: speed: medium: SPD-SER-001: single pass into the caller's buffer.
     /// Serialise the message into `out`, appending the terminating `CRLF`.
     pub fn write_to(&self, out: &mut Vec<u8>) {
         if !self.tags.is_empty() {
@@ -253,6 +257,7 @@ impl Message {
         out.extend_from_slice(b"\r\n");
     }
 
+    // MARK: security: medium: SEC-LEN-001: clamps the ceiling so output stays terminated.
     /// Serialise the message, truncating the trailing parameter so the encoded
     /// line (including `CRLF`) never exceeds `max_len` bytes.
     ///

@@ -19,6 +19,7 @@ pub fn daemonize(config: &DaemonSection) -> Result<()> {
         if !config.enabled {
             return Ok(());
         }
+        // MARK: safety: high: SAF-FORK-001: runs before any thread or runtime exists.
         // Safety: called from `main` before any threads (including the Tokio
         // runtime) exist, so fork cannot duplicate a locked mutex or an
         // in-flight allocation in another thread.

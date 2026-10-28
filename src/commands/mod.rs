@@ -73,6 +73,7 @@ macro_rules! command_table {
     ($($name:literal => $spec:expr),* $(,)?) => {
         static CLIENT_COMMANDS: &[CommandSpec] = &[$($spec),*];
 
+        // MARK: speed: high: SPD-DISPATCH-001: match tree beats hashing (benches/dispatch.rs).
         /// Look up a client command.
         ///
         /// `name` must already be upper-cased: [`Message::parse`] normalises

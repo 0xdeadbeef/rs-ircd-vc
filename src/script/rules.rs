@@ -5,6 +5,7 @@
 //! costs one pointer call and one linear wildcard match per field: no
 //! interpreter, no allocation, and nothing that grows with message size.
 
+// MARK: policy: high: POL-RULES-001: rules run before scripts and a deny is final.
 use serde::Deserialize;
 
 use crate::error::{Error, Result};

@@ -322,6 +322,7 @@ mod winlog {
                 .encode_wide()
                 .chain(std::iter::once(0))
                 .collect();
+            // MARK: safety: medium: SAF-WINLOG-001: API-owned handles, freed exactly once.
             // Safety: `wide` is NUL-terminated and outlives the call.
             let handle = unsafe { RegisterEventSourceW(ptr::null(), wide.as_ptr()) };
             if handle.is_null() {

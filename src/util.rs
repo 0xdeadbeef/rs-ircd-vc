@@ -34,10 +34,12 @@ pub fn iso8601(unix_seconds: u64) -> String {
         .unwrap_or_default()
 }
 
+// MARK: security: high: SEC-WILD-001: one backtrack point bounds hostile ban masks.
 /// Match an IRC host mask (`*` and `?` wildcards) against `text`.
 ///
-/// Uses the linear-time greedy algorithm with backtracking to the last star,
-/// so hostile masks cannot trigger exponential behaviour.
+/// The greedy scan keeps a single backtrack point (the most recent `*`), so
+/// cost is `O(len(text) * len(pattern))` for a fixed pattern and hostile masks
+/// cannot trigger exponential behaviour.
 pub fn wildcard_match(pattern: &str, text: &str) -> bool {
     let pattern = pattern.as_bytes();
     let text = text.as_bytes();
@@ -80,6 +82,7 @@ pub async fn reverse_lookup(address: IpAddr) -> Option<String> {
         tokio::task::spawn_blocking(move || {
             let sockaddr = socket2::SockAddr::from(std::net::SocketAddr::new(address, 0));
             let mut host = [0 as libc::c_char; 1025];
+            // MARK: safety: medium: SAF-FFI-001: buffer and length arguments match by construction.
             // Safety: `sockaddr` and `host` are valid for the whole call and
             // the length arguments match their buffers.
             let result = unsafe {
@@ -123,6 +126,7 @@ pub fn sha256_hex(input: &[u8]) -> String {
     out
 }
 
+// MARK: security: high: SEC-CT-001: digest comparison cannot short-circuit.
 /// Compare two hex digests without leaking their contents through timing.
 pub fn constant_time_eq(left: &str, right: &str) -> bool {
     let left = left.as_bytes();

@@ -66,6 +66,7 @@ pub trait AccountBackend: Send + Sync + std::fmt::Debug {
 
     /// Authenticate `credential`, returning the account it belongs to.
     ///
+    // MARK: security: critical: SEC-AUTH-001: all credential failures are indistinguishable.
     /// Returns `None` for every failure: an unknown account, a wrong password
     /// and a mismatched certificate are deliberately indistinguishable to the
     /// client.
