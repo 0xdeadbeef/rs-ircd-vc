@@ -106,6 +106,7 @@ command_table! {
     "KICK" => channel::KICK,
     "KILL" => admin::KILL,
     "KLINE" => admin::KLINE,
+    "KNOCK" => messaging::KNOCK,
     "LINKS" => admin::LINKS,
     "LIST" => channel::LIST,
     "LOGOUT" => registration::LOGOUT,
@@ -127,6 +128,7 @@ command_table! {
     "SAMODE" => admin::SAMODE,
     "SETNAME" => registration::SETNAME,
     "SHUN" => admin::SHUN,
+    "SILENCE" => messaging::SILENCE,
     "SNOMASK" => admin::SNOMASK,
     "STATS" => admin::STATS,
     "TAGMSG" => messaging::TAGMSG,
@@ -137,6 +139,7 @@ command_table! {
     "USERHOST" => messaging::USERHOST,
     "VERSION" => admin::VERSION,
     "WALLOPS" => admin::WALLOPS,
+    "WEBIRC" => registration::WEBIRC,
     "WHO" => messaging::WHO,
     "WHOIS" => messaging::WHOIS,
     "WHOWAS" => messaging::WHOWAS,
@@ -315,7 +318,7 @@ mod tests {
             assert_eq!(found.min_params, spec.min_params);
             assert_eq!(found.access, spec.access);
         }
-        assert_eq!(CLIENT_COMMANDS.len(), 53);
+        assert_eq!(CLIENT_COMMANDS.len(), 56);
     }
 
     #[test]

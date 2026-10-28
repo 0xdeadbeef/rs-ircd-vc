@@ -326,6 +326,29 @@ fn cmd_stats(cx: Cmd) -> CmdFuture {
                     );
                 }
             }
+            "m" => {
+                let server = cx.server.name();
+                for name in crate::commands::names() {
+                    if let Some(spec) = crate::commands::lookup(name) {
+                        cx.client.send_raw(
+                            &format!(":{server} 212 {name} {} 0", spec.min_params),
+                            cx.max_line(),
+                        );
+                    }
+                }
+            }
+            "o" => {
+                let server = cx.server.name();
+                for client in cx.server.oper_recipients() {
+                    let oper = client
+                        .session(|session| session.oper.clone())
+                        .unwrap_or_default();
+                    cx.client.send_raw(
+                        &format!(":{server} 243 O {} {} * *", client.nick_or_star(), oper),
+                        cx.max_line(),
+                    );
+                }
+            }
             "u" => {
                 let uptime = cx.server.uptime_seconds();
                 let days = uptime / 86_400;
@@ -738,6 +761,7 @@ fn add_server_ban(cx: &Cmd, kind: BanKind) -> Result<(), CommandError> {
                         session.host.clone(),
                         session.account.clone(),
                         session.registered,
+                        session.realhost.clone(),
                     )
                 });
                 session.4
@@ -747,7 +771,7 @@ fn add_server_ban(cx: &Cmd, kind: BanKind) -> Result<(), CommandError> {
                         &session.0,
                         &session.1,
                         &session.2,
-                        &entry.value().peer.ip().to_string(),
+                        &session.5,
                         session.3.as_deref(),
                     )
             })

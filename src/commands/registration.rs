@@ -64,6 +64,14 @@ pub const LOGOUT: CommandSpec = CommandSpec {
     handler: cmd_logout,
 };
 
+/// `WEBIRC` supplies the real client address from a trusted gateway.
+pub const WEBIRC: CommandSpec = CommandSpec {
+    name: "WEBIRC",
+    min_params: 4,
+    access: Access::Unregistered,
+    handler: cmd_webirc,
+};
+
 /// `SETNAME` changes the real name after registration.
 pub const SETNAME: CommandSpec = CommandSpec {
     name: "SETNAME",
@@ -447,6 +455,52 @@ fn verify_payload(
     }
 }
 
+fn cmd_webirc(cx: Cmd) -> CmdFuture {
+    Box::pin(async move {
+        if cx.client.is_registered() {
+            return Err(cx.fail(
+                Numeric::ERR_ALREADYREGISTRED,
+                "WEBIRC :Cannot use WEBIRC after registration",
+            ));
+        }
+        let password = cx.param(0).unwrap_or_default();
+        let hostname = cx.param(2).unwrap_or_default().to_owned();
+        let address = cx.param(3).unwrap_or_default().to_owned();
+        let gateway = cx.client.peer.ip().to_string();
+        let config = cx.server.cfg();
+        // MARK: security: critical: SEC-WEBIRC-001: gateway address and secret are both required.
+        let trusted = config.webirc.iter().find(|entry| {
+            crate::util::wildcard_match(&entry.host, &gateway)
+                && std::env::var(&entry.password_env)
+                    .ok()
+                    .filter(|stored| !stored.is_empty())
+                    .is_some_and(|stored| crate::util::secret_matches(&stored, password))
+        });
+        if trusted.is_none() {
+            tracing::warn!(%gateway, nick = %cx.nick(), "rejected WEBIRC gateway");
+            return Err(cx.fail(
+                Numeric::ERR_PASSWDMISMATCH,
+                "WEBIRC :Invalid gateway password",
+            ));
+        }
+        if address.parse::<std::net::IpAddr>().is_err() {
+            return Err(cx.fail(Numeric(464), "WEBIRC :Invalid address"));
+        }
+        if hostname.is_empty()
+            || hostname.len() > 63
+            || !hostname.bytes().all(|byte| byte.is_ascii_graphic())
+        {
+            return Err(cx.fail(Numeric(464), "WEBIRC :Invalid hostname"));
+        }
+        cx.client.session_mut(|session| {
+            session.host = hostname;
+            session.realhost = address;
+        });
+        tracing::info!(%gateway, nick = %cx.nick(), "WEBIRC gateway accepted");
+        Ok(())
+    })
+}
+
 fn cmd_setname(cx: Cmd) -> CmdFuture {
     Box::pin(async move {
         let realname = cx.param(0).unwrap_or_default().trim();
@@ -627,7 +681,7 @@ pub fn try_register(server: &Arc<Server>, client: &Arc<ClientHandle>) -> bool {
             session.nick.clone().unwrap_or_default(),
             session.user.clone().unwrap_or_default(),
             session.host.clone(),
-            client.peer.ip().to_string(),
+            session.realhost.clone(),
             session.account.clone(),
         )
     });

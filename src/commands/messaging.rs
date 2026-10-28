@@ -111,6 +111,144 @@ pub const TAGMSG: CommandSpec = CommandSpec {
     handler: cmd_tagmsg,
 };
 
+/// `SILENCE` keeps a per-session list of masks to drop direct messages from.
+pub const SILENCE: CommandSpec = CommandSpec {
+    name: "SILENCE",
+    min_params: 0,
+    access: Access::Registered,
+    handler: cmd_silence,
+};
+
+/// `KNOCK` asks the operators of an invite-only channel for an invitation.
+pub const KNOCK: CommandSpec = CommandSpec {
+    name: "KNOCK",
+    min_params: 1,
+    access: Access::Registered,
+    handler: cmd_knock,
+};
+
+/// Masks one session may silence.
+const SILENCE_LIMIT: usize = 15;
+
+fn cmd_silence(cx: Cmd) -> CmdFuture {
+    Box::pin(async move {
+        let Some(argument) = cx.param(0).map(str::to_owned) else {
+            let entries = cx.client.session(|session| session.silence.clone());
+            for mask in entries {
+                cx.reply(Numeric(271), mask);
+            }
+            cx.reply(Numeric(272), ":End of SILENCE list");
+            return Ok(());
+        };
+        let adding = argument.starts_with('+');
+        if !adding && !argument.starts_with('-') {
+            return Err(cx.fail(Numeric::ERR_NEEDMOREPARAMS, "SILENCE :Use +mask or -mask"));
+        }
+        let mask = &argument[1..];
+        if mask.is_empty() {
+            return Err(cx.fail(Numeric::ERR_NEEDMOREPARAMS, "SILENCE :Empty mask"));
+        }
+        let folded = mask.to_ascii_lowercase();
+        if adding {
+            let inserted = cx.client.session_mut(|session| {
+                if session.silence.contains(&folded) {
+                    return true;
+                }
+                if session.silence.len() >= SILENCE_LIMIT {
+                    return false;
+                }
+                session.silence.push(folded.clone());
+                true
+            });
+            if !inserted {
+                return Err(cx.fail(Numeric(478), "SILENCE :Silence list is full"));
+            }
+        } else {
+            cx.client
+                .session_mut(|session| session.silence.retain(|entry| entry != &folded));
+        }
+        cx.reply(Numeric(271), mask);
+        cx.reply(Numeric(272), ":End of SILENCE list");
+        Ok(())
+    })
+}
+
+fn cmd_knock(cx: Cmd) -> CmdFuture {
+    Box::pin(async move {
+        let name = cx.param(0).unwrap_or_default().to_owned();
+        let reason = cx
+            .param(1)
+            .unwrap_or("no reason")
+            .chars()
+            .take(200)
+            .collect::<String>();
+        let Some(channel) = cx.channel(&name) else {
+            return Err(cx.fail(
+                Numeric::ERR_NOSUCHCHANNEL,
+                format!("{name} :No such channel"),
+            ));
+        };
+        let (channel_name, operators) = {
+            let guard = channel.read();
+            if guard.contains(cx.client.id) {
+                return Err(cx.fail(
+                    Numeric(480),
+                    format!("{} :You are already on that channel", guard.name),
+                ));
+            }
+            if !guard.invite_only {
+                return Err(cx.fail(
+                    Numeric(480),
+                    format!("{} :Channel is not invite-only", guard.name),
+                ));
+            }
+            if guard.invited(cx.client.id) {
+                return Err(cx.fail(
+                    Numeric(480),
+                    format!("{} :You are already invited", guard.name),
+                ));
+            }
+            let (nick, user, host, account) = cx.client.session(|session| {
+                (
+                    session.nick.clone().unwrap_or_default(),
+                    session.user.clone().unwrap_or_default(),
+                    session.host.clone(),
+                    session.account.clone(),
+                )
+            });
+            if guard.is_banned(&nick, &user, &host, account.as_deref()) {
+                return Err(cx.fail(
+                    Numeric(480),
+                    format!("{} :Cannot knock, you are banned", guard.name),
+                ));
+            }
+            (
+                guard.name.clone(),
+                guard
+                    .members
+                    .iter()
+                    .filter(|(_, mode)| mode.op)
+                    .map(|(id, _)| *id)
+                    .collect::<Vec<_>>(),
+            )
+        };
+        let mut knock = Message::command("KNOCK");
+        knock.prefix = Some(cx.mask());
+        knock.params.push(channel_name.clone());
+        knock.params.push(reason);
+        for id in operators {
+            if let Some(operator) = cx.server.find_client(id) {
+                operator.send(&knock, cx.max_line());
+            }
+        }
+        cx.reply(
+            Numeric(710),
+            format!("{channel_name} :Knock delivered to the channel operators"),
+        );
+        Ok(())
+    })
+}
+
 /// `MONITOR` maintains a server-side presence list.
 pub const MONITOR: CommandSpec = CommandSpec {
     name: "MONITOR",
@@ -524,6 +662,7 @@ fn deliver(cx: &Cmd, command: &str, extra: &[(String, String)]) -> Result<(), Co
             )
         });
         // MARK: security: medium: SEC-BAN-003: a shun drops speech at the delivery point.
+        let address = cx.client.session(|session| session.realhost.clone());
         if cx
             .server
             .matching_ban(
@@ -531,7 +670,7 @@ fn deliver(cx: &Cmd, command: &str, extra: &[(String, String)]) -> Result<(), Co
                 &nick,
                 &user,
                 &host,
-                &cx.client.peer.ip().to_string(),
+                &address,
                 account.as_deref(),
             )
             .is_some()
@@ -689,6 +828,11 @@ fn talk_user(
             format!("{nick} :No such nick/channel"),
         ));
     };
+    // SILENCE drops a direct message at the recipient without telling the
+    // sender: silence is a personal filter, not a moderation signal.
+    if target.is_silenced(&cx.mask()) {
+        return Ok(());
+    }
     if command == "PRIVMSG" {
         if let Some(away) = target.session(|session| session.away.clone()) {
             if target.is_local() {
@@ -778,6 +922,7 @@ fn notify_away(cx: &Cmd, message: Option<String>, max_line: usize) {
 fn cmd_who(cx: Cmd) -> CmdFuture {
     Box::pin(async move {
         let mask = cx.param(0).unwrap_or("*").to_owned();
+        let whox = parse_who_fields(cx.param(1));
         let server_name = cx.server.name();
 
         if is_channel_name(&mask) {
@@ -794,7 +939,17 @@ fn cmd_who(cx: Cmd) -> CmdFuture {
                 drop(guard);
                 for (mode, client) in members {
                     let flags = who_flags(Some(mode), &client);
-                    send_who_reply(&cx, &channel_name, &client, &flags, &server_name);
+                    match &whox {
+                        Some(query) => send_whox_reply(
+                            &cx,
+                            &channel_name,
+                            &client,
+                            &flags,
+                            &server_name,
+                            query,
+                        ),
+                        None => send_who_reply(&cx, &channel_name, &client, &flags, &server_name),
+                    }
                 }
             }
         } else {
@@ -808,12 +963,91 @@ fn cmd_who(cx: Cmd) -> CmdFuture {
                     continue;
                 }
                 let flags = who_flags(None, &client);
-                send_who_reply(&cx, "*", &client, &flags, &server_name);
+                match &whox {
+                    Some(query) => send_whox_reply(&cx, "*", &client, &flags, &server_name, query),
+                    None => send_who_reply(&cx, "*", &client, &flags, &server_name),
+                }
             }
         }
         cx.reply(Numeric::RPL_ENDOFWHO, format!("{mask} :End of /WHO list."));
         Ok(())
     })
+}
+
+/// Fields a `WHOX` query asked for, plus its token.
+struct WhoFields {
+    fields: String,
+    token: Option<String>,
+}
+
+/// Parse the `%fields[,token]` argument of a `WHOX` request.
+fn parse_who_fields(argument: Option<&str>) -> Option<WhoFields> {
+    let rest = argument?.strip_prefix('%')?;
+    let (fields, token) = match rest.split_once(',') {
+        Some((fields, token)) => (
+            fields.to_owned(),
+            (!token.is_empty()).then(|| token.to_owned()),
+        ),
+        None => (rest.to_owned(), None),
+    };
+    Some(WhoFields { fields, token })
+}
+
+/// Reply with numeric `354`, the requested fields in the requested order.
+///
+/// Unknown field letters are skipped rather than faulting, which is what lets a
+/// client ask for a field this server does not track without losing the rest of
+/// the answer.
+fn send_whox_reply(
+    cx: &Cmd,
+    channel: &str,
+    client: &ClientHandle,
+    flags: &str,
+    server: &str,
+    query: &WhoFields,
+) {
+    let (user, host, realname, account) = client.session(|session| {
+        (
+            session.user.clone().unwrap_or_default(),
+            session.host.clone(),
+            session.realname.clone().unwrap_or_default(),
+            session.account.clone(),
+        )
+    });
+    let mut values: Vec<String> = Vec::with_capacity(query.fields.len() + 1);
+    for field in query.fields.chars() {
+        let value = match field {
+            't' => "1".to_owned(),
+            'c' => channel.to_owned(),
+            'u' => user.clone(),
+            'i' => client.session(|session| session.realhost.clone()),
+            'h' => host.clone(),
+            's' => server.to_owned(),
+            'n' => client.nick_or_star(),
+            'f' => flags.to_owned(),
+            'd' => if client.remote_server.is_some() {
+                "1"
+            } else {
+                "0"
+            }
+            .to_owned(),
+            'l' => now_unix()
+                .saturating_sub(client.last_activity.load(Ordering::Relaxed))
+                .to_string(),
+            'a' => account.clone().unwrap_or_else(|| "0".to_owned()),
+            'r' => realname.clone(),
+            _ => continue,
+        };
+        values.push(value);
+    }
+    if let Some(token) = &query.token {
+        values.push(token.clone());
+    }
+    let nick = cx.nick();
+    cx.client.send_raw(
+        &format!(":{} 354 {nick} {}", cx.server.name(), values.join(" ")),
+        cx.max_line(),
+    );
 }
 
 fn who_flags(mode: Option<crate::server::channel::MemberMode>, client: &ClientHandle) -> String {

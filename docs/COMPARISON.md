@@ -4,7 +4,7 @@ Full comparison of this daemon against the five open-source IRC servers this
 repository already indexes in [FEATURES.md](FEATURES.md), followed by a
 prioritised list of features we do not have, sized for implementation.
 
-* **Subject:** rs-ircd (53 client commands, 21 IRCv3 capabilities, channel
+* **Subject:** rs-ircd (56 client commands, 21 IRCv3 capabilities, channel
   modes `imnpstRklovbe`). The capability table below reflects the tree after the
   IRCv3 work; see [IRCV3.md](IRCV3.md) for what each capability does.
 * **Peers:** InspIRCd 4.x, UnrealIRCd 6.x, Solanum, Ergo 2.x, ngIRCd. All five
@@ -51,7 +51,7 @@ says so rather than pretending the comparison is version-independent.
 | TLS client certificates | Yes, pinned per account | Yes | Yes | Yes | Yes | ? | Ours needs no CA |
 | Encrypted private key | Yes (PKCS#8, passphrase env) | Yes | Yes | Yes | ? | ? | |
 | WebSocket transport | No | Module | Yes | No | Yes | No | Ergo documents this explicitly |
-| Proxy protocol / WEBIRC | No | Module | Yes | Yes | ? | No | Needed behind a CDN or bouncer |
+| Proxy protocol / WEBIRC | Yes | Module | Yes | Yes | ? | No | Trusted gateway by address and secret |
 | Connection compression | Yes, framed zlib | No | ? | Yes (ziplinks) | No | Yes (links) | Ours is per-connection, bomb-resistant |
 | IPv4 and IPv6 multi-bind | Yes | Yes | Yes | Yes | Yes | Yes | |
 | Hostname resolution | Yes (opt-in) | Yes | Yes | Yes | Yes | Yes | We default it off for latency |
@@ -63,9 +63,9 @@ says so rather than pretending the comparison is version-independent.
 | Capability | rs-ircd | InspIRCd 4 | UnrealIRCd 6 | Solanum | Ergo | ngIRCd | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | RFC 1459/2812 command set | Yes, 39 commands | Yes | Yes | Yes | Partial, IRCv3-first | Yes | |
-| `WHOX` | No | Yes | Yes | Yes | Yes | No | Used by bots and clients for efficient WHO |
-| `SILENCE` | No | Yes | Yes | Yes | ? | No | Server-side ignore lists |
-| `KNOCK` | No | Module | Yes | ? | ? | No | `+K` disables it where supported |
+| `WHOX` | Yes | Yes | Yes | Yes | Yes | No | `354` reply with selected fields and token |
+| `SILENCE` | Yes | Yes | Yes | Yes | ? | No | 15 masks per session, enforced at delivery |
+| `KNOCK` | Yes | Module | Yes | ? | ? | No | Delivered to channel operators |
 | `TAGMSG` | Yes | Yes | Yes | Yes | Yes | No | Bodyless messages under `message-tags` |
 | `SETNAME` | No | Module | Yes | Yes | Yes | No | Real name changes after registration |
 | `CHGHOST` | No | Module | Yes | Yes | Yes | No | Services-driven host changes |
@@ -76,9 +76,8 @@ says so rather than pretending the comparison is version-independent.
 | `SQUIT` / `CONNECT` from clients | No (links only) | Yes | Yes | Yes | n/a | Yes | Routing is automatic here |
 
 Verified in this tree: the capability rows marked `Yes` are asserted by
-`tests/ircv3.rs`, `tests/network.rs` or the audit harness. `SILENCE`, `KNOCK`,
-`WHOX`, `STARTTLS` and `WEBIRC` still have no implementation and no hits in
-`src/`, so those rows are `No` rather than "untested".
+`tests/ircv3.rs`, `tests/network.rs` or the audit harness. `STARTTLS` still has no implementation and no hits in `src/`, so that row is
+`No` rather than "untested". The others are asserted by `tests/client_commands.rs`.
 
 ## 4. IRCv3 capabilities
 

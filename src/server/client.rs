@@ -423,6 +423,8 @@ pub struct Session {
     pub monitor: HashSet<String>,
     /// `draft/multiline` batch currently being collected from this client.
     pub multiline: Option<MultilineBatch>,
+    /// `SILENCE` masks, lower-cased for comparison at delivery.
+    pub silence: Vec<String>,
     /// Sign-on time (Unix seconds).
     pub signon: u64,
     /// Creation timestamp used for nickname collision resolution.
@@ -577,6 +579,21 @@ impl ClientHandle {
     /// Mutate the session.
     pub fn session_mut<R>(&self, f: impl FnOnce(&mut Session) -> R) -> R {
         f(&mut self.session.write())
+    }
+
+    /// True when `mask` matches one of this session's `SILENCE` entries.
+    ///
+    /// The list is bounded by the command, so a direct message to a client
+    /// with silence entries costs at most one wildcard match per entry, and a
+    /// client with none returns after the empty check.
+    pub fn is_silenced(&self, mask: &str) -> bool {
+        let folded = mask.to_ascii_lowercase();
+        self.session(|session| {
+            session
+                .silence
+                .iter()
+                .any(|pattern| crate::util::wildcard_match(pattern, &folded))
+        })
     }
 
     /// Nickname as typed, if one has been chosen.

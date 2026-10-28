@@ -41,6 +41,8 @@ pub struct Config {
     pub opers: Vec<OperSection>,
     /// Outbound links this server dials itself.
     pub links: Vec<LinkSection>,
+    /// Trusted `WEBIRC` gateways.
+    pub webirc: Vec<WebircSection>,
     /// Listener definitions; several may bind the same port on different
     /// address families.
     pub listen: Vec<ListenSection>,
@@ -492,6 +494,20 @@ impl OperPrivilege {
     }
 }
 
+/// One trusted `WEBIRC` gateway.
+///
+/// A gateway is trusted by its source address and a secret, never by the
+/// hostname it claims: the password is read from the environment and compared
+/// in constant time, and only a connection from `host` may use it.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct WebircSection {
+    /// Address or wildcard mask the gateway connects from.
+    pub host: String,
+    /// Environment variable holding the shared secret.
+    pub password_env: String,
+}
+
 /// A listener binding one port to one or more addresses.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
@@ -760,6 +776,24 @@ impl Config {
             }
             if !link_names.insert(link.name.to_ascii_lowercase()) {
                 return Err(Error::Config(format!("duplicate link {}", link.name)));
+            }
+        }
+        let mut gateway_hosts = HashSet::with_capacity(self.webirc.len());
+        for gateway in &self.webirc {
+            if gateway.host.trim().is_empty() {
+                return Err(Error::Config("webirc.host must not be empty".to_owned()));
+            }
+            if gateway.password_env.trim().is_empty() {
+                return Err(Error::Config(format!(
+                    "webirc {} needs password_env",
+                    gateway.host
+                )));
+            }
+            if !gateway_hosts.insert(gateway.host.to_ascii_lowercase()) {
+                return Err(Error::Config(format!(
+                    "duplicate webirc gateway {}",
+                    gateway.host
+                )));
             }
         }
         for path in &self.scripting.scripts {
